@@ -11,6 +11,7 @@
     sections = [];
 
     activeClass = 'active-screen';
+    cloneClass = 'clone-screen';
     distance = 0;
 
     index = 0;
@@ -21,8 +22,10 @@
 
     constructor(opts) {
 
-      this.wrap = opts.wrap || document.documentElement;
-      this.scrollWrap = opts.scrollWrap || $('main');
+      this.wrap = opts.wrap || $('main');
+      this.scrollWrap = opts.scrollWrap || document.documentElement;
+
+      $(this.wrap).prepend(this.addClone('100vh', false, 'window-clone'));
 
       if (Array.isArray(opts.sections)) {
         opts.sections.forEach((s) => this.addSection(s));
@@ -34,6 +37,10 @@
 
       // Events
       $(this.scrollWrap).on('scroll', (e) => this.scroll(e));
+    }
+
+    refresh() {
+      $(this.scrollWrap).trigger('scroll');
     }
 
     setActive(name) {
@@ -58,6 +65,7 @@
       for (let i = this.sections.length - 1; i >= 0; i--) {
         let s = this.sections[i];
         if (s.top < sy) {
+
           this.current = s;
           this.index = i;
 
@@ -71,11 +79,24 @@
             this.setActive(s);
           }
           if (typeof s.onScroll === 'function') {
-            s.onScroll(sy, sy - s.top, s);
+            s.onScroll(sy - s.top, s, sy);
           }
           break;
         }
       }
+    }
+
+    addClone (distance, $el, className) {
+      let $clone = $('<section>&nbsp;</section>');
+      $clone.height(distance);
+      $clone.addClass(this.cloneClass);
+      $clone.addClass(className);
+
+      if ($el) {
+        $el.after($clone);
+      }
+
+      return $clone;
     }
 
     addSection (section) {
@@ -84,12 +105,15 @@
       if ($el.length) {
         $el.addClass('locked');
 
+        let $clone = this.addClone(section.distance, $el);
+
         if (section.zindex) {
           $el.css('z-index', section.zindex);
         }
 
         section.top = this.distance;
         section.element = $el[0];
+        section.clone = $clone;
 
         if (typeof section.cleanup !== 'function') {
           section.cleanup = () => {};
@@ -97,13 +121,7 @@
 
         this.distance += section.distance || 0;
         this.sections.push(section);
-
-        this.refresh();
       }
-    }
-
-    refresh() {
-      $(this.wrap).height(window.innerHeight + this.distance);
     }
 
   }
