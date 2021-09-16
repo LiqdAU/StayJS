@@ -14,14 +14,13 @@
     cloneClass = 'clone-screen';
     distance = 0;
 
-    index = 0;
+    index = -1;
     current = false;
-    prevIndex = 0;
+    prevIndex = -1;
     previous = false;
 
 
     constructor(opts) {
-
       this.wrap = opts.wrap || $('main');
       this.scrollWrap = opts.scrollWrap || document.documentElement;
 
@@ -40,6 +39,9 @@
     }
 
     refresh() {
+      if (this.current && typeof this.current.before === 'function') {
+        this.current.before(this.current);
+      }
       $(this.scrollWrap).trigger('scroll');
     }
 
