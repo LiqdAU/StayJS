@@ -21,8 +21,8 @@
 
 
     constructor(opts) {
-      this.wrap = opts.wrap || $('main');
-      this.scrollWrap = opts.scrollWrap || document.documentElement;
+      this.wrap = $(opts.wrap || $('main'));
+      this.scrollWrap = $(opts.scrollWrap || document.documentElement);
 
       $(this.wrap).prepend(this.addClone('100vh', false, 'window-clone'));
 
@@ -38,11 +38,43 @@
       $(this.scrollWrap).on('scroll', (e) => this.scroll(e));
     }
 
+    get(name) {
+      if (!Array.isArray(this.sections)) {
+        return false;
+      }
+      return this.sections.find(s => s.name === name);
+    }
+
+    update (sections) {
+      Object.entries(sections).forEach((i) => {
+        const [ name, changes ] = i,
+        section = this.get(name);
+
+        if (changes.distance) {
+          section.distance = changes.distance;
+          section.clone.height(section.distance);
+        }
+      });
+
+      this.refresh();
+    }
+
     refresh() {
+      // Update section distance
+      let newDist = 0;
+      Object.values(this.sections).forEach(section => {
+        section.top = newDist;
+        newDist += section.distance;
+      });
+      this.distance = newDist;
+
       if (this.current && typeof this.current.before === 'function') {
         this.current.before(this.current);
       }
-      $(this.scrollWrap).trigger('scroll');
+
+      // Trigger scroll
+      this.scroll();
+      setTimeout(() => this.scroll(), 500);
     }
 
     setActive(name) {
@@ -59,27 +91,29 @@
     }
 
     scroll (e) {
-      const sy = document.body.scrollTop;
+      const sy = this.scrollWrap[0].scrollTop;
 
       this.prevIndex = this.index;
       this.previous = this.current;
 
       for (let i = this.sections.length - 1; i >= 0; i--) {
         let s = this.sections[i];
-        if (s.top < sy) {
-
+        if (s.top <= sy) {
           this.current = s;
           this.index = i;
 
           if (this.prevIndex !== this.index) {
+            let dir = this.prevIndex < this.index ? 1 : -1;
+
             if (this.previous) {
-              this.previous.cleanup();
+              this.previous.cleanup(dir);
             }
             if (typeof s.before === 'function') {
-              s.before(s);
+              s.before(s, dir);
             }
             this.setActive(s);
           }
+
           if (typeof s.onScroll === 'function') {
             s.onScroll(sy - s.top, s, sy);
           }
