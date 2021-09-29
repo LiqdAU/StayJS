@@ -91,31 +91,32 @@
     }
 
     scroll (e) {
-      const sy = this.scrollWrap[0].scrollTop;
+      const y = this.scrollWrap[0].scrollTop;
 
       this.prevIndex = this.index;
       this.previous = this.current;
 
       for (let i = this.sections.length - 1; i >= 0; i--) {
         let s = this.sections[i];
-        if (s.top <= sy) {
+        if (s.top <= y) {
           this.current = s;
           this.index = i;
 
           if (this.prevIndex !== this.index) {
-            let dir = this.prevIndex < this.index ? 1 : -1;
+            let forward = this.prevIndex < this.index;
 
             if (this.previous) {
-              this.previous.cleanup(dir);
+              this.previous.cleanup(forward);
             }
             if (typeof s.before === 'function') {
-              s.before(s, dir);
+              s.before(s, forward);
             }
             this.setActive(s);
           }
 
           if (typeof s.onScroll === 'function') {
-            s.onScroll(sy - s.top, s, sy);
+            let sy = y - s.top, a = (sy / s.distance);
+            s.onScroll(sy, s, y, a);
           }
           break;
         }
