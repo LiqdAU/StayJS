@@ -58,22 +58,24 @@
 
       const el = $('<div class="stay-debug"></div>');
       el.append('<div data-debug="s">Current Section: <span></span></div>');
-      el.append('<div data-debug="y">Page Y: <span></span></div>');
-      el.append('<div data-debug="sy">Section Y: <span></span></div>');
-      el.append('<div data-debug="a">Section %: <span></span></div>');
+      el.append('<div data-debug="a">Section %: <span></span>%</div>');
+      el.append('<div data-debug="sy">Section Y: <span></span>px</div>');
+      el.append('<div data-debug="y">Page Y: <span></span>px</div>');
 
       el.css({
         'position': 'fixed',
         'bottom': '10px',
         'left': '10px',
         'z-index': '9999999',
-        'background': '#ffff',
+        'background': '#fff',
+        'line-height': '1.6',
+        'box-shadow': '#7a7a7a47 0px 0px 8px',
         'padding': '10px',
         'border-radius': '4px',
         'font-size': '12px',
         'min-width': '300px',
-        'mix-blend-mode': 'difference',
-        'pointer-events': 'none'
+        'pointer-events': 'none',
+        'opacity': '0.75'
       })
 
       $(document.body).append(el);
