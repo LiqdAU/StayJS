@@ -176,7 +176,7 @@
             s: s.name,
             sy,
             y,
-            a: a * 100
+            a: Math.floor(a * 100)
           });
 
           break;
@@ -228,6 +228,60 @@
         this.distance += section.distance || 0;
         this.sections.push(section);
       }
+    }
+
+    /*
+     * Math Helpers
+     */
+
+    static split(amt, from, to) {
+      let a = amt - from,
+      multi = 1 / (to - from);
+      return Math.max(a * multi, 0);
+    }
+
+    static splitInOut(amt, from, peak, to) {
+       let before = this.split(amt, from, peak),
+       after = 1 - this.split(amt, peak, to);
+       return before < 1 ? before : after;
+    }
+
+    static splitInOutWait(amt, from, sPeak, ePeak, to) {
+       let before = this.split(amt, from, sPeak),
+       after = 1 - this.split(amt, ePeak, to);
+       return before < 1 ? before : (amt < ePeak ? 1 : after);
+    }
+
+    static resolvePoint(deg, length, start) {
+      var radians = deg / 180 * Math.PI;
+      var x = length * Math.cos(radians);
+      var y = length * Math.sin(radians);
+
+      return {
+        x : x + (start?.x || 0),
+        y: y + (start?.y || 0)
+      };
+    }
+
+    static ease(i, type) {
+      switch (type) {
+        case 'easeIn':
+          i = 1 - Math.cos((i * Math.PI) / 2);
+          break;
+        case 'easeOut':
+          i = Math.sin((i * Math.PI) / 2);
+          break;
+        case 'easeInQuint':
+          i = i * i * i * i * i;
+          break;
+      }
+      // Return linear
+      return i;
+    }
+
+    static tween(start, end, amount, ease) {
+      amount = this.ease(amount, ease);
+      return start + (amount * (end - start));
     }
 
   }
