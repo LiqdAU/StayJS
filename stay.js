@@ -19,12 +19,17 @@
     prevIndex = -1;
     previous = false;
 
+    #isReady = null;
+
+    #isDebug = false;
+    #debugInfo = null;
 
     constructor(opts) {
       this.wrap = $(opts.wrap || $('main'));
       this.scrollWrap = $(opts.scrollWrap || document.documentElement);
 
-      $(this.wrap).prepend(this.addClone('100vh', false, 'window-clone'));
+      this.wrap.addClass('stay-wrap');
+      this.wrap.prepend(this.addClone('100vh', false, 'window-clone'));
 
       if (Array.isArray(opts.sections)) {
         opts.sections.forEach((s) => this.addSection(s));
@@ -34,8 +39,53 @@
         this.setScroll(false);
       }
 
+      if (typeof opts.isReady === 'function') {
+        this.isReady = opts.isReady;
+      } else {
+        this.isReady = () => true;
+      }
+
+      if (opts.debug) {
+        this.debug();
+      }
+
       // Events
       $(this.scrollWrap).on('scroll', (e) => this.scroll(e));
+    }
+
+    debug() {
+      this.isDebug = true;
+
+      const el = $('<div class="stay-debug"></div>');
+      el.append('<div data-debug="s">Current Section: <span></span></div>');
+      el.append('<div data-debug="y">Page Y: <span></span></div>');
+      el.append('<div data-debug="sy">Section Y: <span></span></div>');
+      el.append('<div data-debug="a">Section %: <span></span></div>');
+
+      el.css({
+        'position': 'fixed',
+        'bottom': '10px',
+        'left': '10px',
+        'z-index': '9999999',
+        'background': '#ffff',
+        'padding': '10px',
+        'border-radius': '4px',
+        'font-size': '12px',
+        'min-width': '300px',
+        'mix-blend-mode': 'difference',
+        'pointer-events': 'none'
+      })
+
+      $(document.body).append(el);
+
+      this.debugInfo = el;
+      this.scroll();
+    }
+
+    updateDebug(vars) {
+      Object.entries(vars).forEach((i) => {
+        this.debugInfo.find(`[data-debug="${i[0]}"] span`).text(i[1]);
+      });
     }
 
     get(name) {
@@ -61,14 +111,14 @@
 
     refresh() {
       // Update section distance
-      let newDist = 0;
+      let newDist = 0, ready = this.isReady();
       Object.values(this.sections).forEach(section => {
         section.top = newDist;
         newDist += section.distance;
       });
       this.distance = newDist;
 
-      if (this.current && typeof this.current.before === 'function') {
+      if (ready && this.current && typeof this.current.before === 'function') {
         this.current.before(this.current);
       }
 
@@ -91,7 +141,8 @@
     }
 
     scroll (e) {
-      const y = this.scrollWrap[0].scrollTop;
+      const y = this.scrollWrap[0].scrollTop,
+      ready = this.isReady();
 
       this.prevIndex = this.index;
       this.previous = this.current;
@@ -105,19 +156,27 @@
           if (this.prevIndex !== this.index) {
             let forward = this.prevIndex < this.index;
 
-            if (this.previous) {
+            if (ready && this.previous) {
               this.previous.cleanup(forward);
             }
-            if (typeof s.before === 'function') {
+            if (ready && typeof s.before === 'function') {
               s.before(s, forward);
             }
             this.setActive(s);
           }
 
-          if (typeof s.onScroll === 'function') {
-            let sy = y - s.top, a = (sy / s.distance);
+          let sy = y - s.top, a = (sy / s.distance);
+          if (ready && typeof s.onScroll === 'function') {
             s.onScroll(sy, s, y, a);
           }
+
+          this.updateDebug({
+            s: s.name,
+            sy,
+            y,
+            a: a * 100
+          });
+
           break;
         }
       }
@@ -144,6 +203,10 @@
 
         let $clone = this.addClone(section.distance, $el);
 
+        if (section.css) {
+          $el.css(section.css);
+        }
+
         if (section.zindex) {
           $el.css('z-index', section.zindex);
         }
@@ -154,6 +217,10 @@
 
         if (typeof section.cleanup !== 'function') {
           section.cleanup = () => {};
+        }
+
+        if (typeof section.setup === 'function') {
+          section.setup(section);
         }
 
         this.distance += section.distance || 0;
