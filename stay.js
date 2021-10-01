@@ -169,7 +169,7 @@
 
           let sy = y - s.top, a = (sy / s.distance);
           if (ready && typeof s.onScroll === 'function') {
-            s.onScroll(sy, s, y, a);
+            s.onScroll(a, s, sy, y);
           }
 
           this.updateDebug({
@@ -263,25 +263,25 @@
       };
     }
 
-    static ease(i, type) {
+    static ease(amt, type) {
       switch (type) {
         case 'easeIn':
-          i = 1 - Math.cos((i * Math.PI) / 2);
+          amt = 1 - Math.cos((amt * Math.PI) / 2);
           break;
         case 'easeOut':
-          i = Math.sin((i * Math.PI) / 2);
+          amt = Math.sin((amt * Math.PI) / 2);
           break;
         case 'easeInQuint':
-          i = i * i * i * i * i;
+          amt = amt * amt * amt * amt * amt;
           break;
       }
       // Return linear
-      return i;
+      return amt;
     }
 
-    static tween(start, end, amount, ease) {
-      amount = this.ease(amount, ease);
-      return start + (amount * (end - start));
+    static tween(start, end, amt, ease) {
+      amt = this.ease(amt, ease);
+      return start + (amt * (end - start));
     }
 
   }
