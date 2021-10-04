@@ -14,22 +14,36 @@
     cloneClass = 'clone-screen';
     distance = 0;
 
+    options = {};
+    wrap = null;
     index = -1;
     current = false;
     prevIndex = -1;
     previous = false;
 
     #isReady = null;
-
     #isDebug = false;
     #debugInfo = null;
+    #windowClone = null;
 
     constructor(opts) {
+      this.reset(opts);
+
+      // Events
+      $(this.scrollWrap).on('scroll', (e) => this.scroll(e));
+    }
+
+    reset(opts) {
+      this.options = opts = {...this.options, ...opts};
+      this.sections = [];
       this.wrap = $(opts.wrap || $('main'));
       this.scrollWrap = $(opts.scrollWrap || document.documentElement);
 
+      // Remove window clones
+      $('.window-clone').remove();
+      this.#windowClone = null;
+
       this.wrap.addClass('stay-wrap');
-      this.wrap.prepend(this.addClone('100vh', false, 'window-clone'));
 
       if (Array.isArray(opts.sections)) {
         this.add(opts.sections);
@@ -40,21 +54,18 @@
       }
 
       if (typeof opts.isReady === 'function') {
-        this.isReady = opts.isReady;
+        this.#isReady = opts.isReady;
       } else {
-        this.isReady = () => true;
+        this.#isReady = () => true;
       }
 
       if (opts.debug) {
         this.debug();
       }
-
-      // Events
-      $(this.scrollWrap).on('scroll', (e) => this.scroll(e));
     }
 
     debug() {
-      this.isDebug = true;
+      this.#isDebug = true;
 
       const el = $('<div class="stay-debug"></div>');
       el.append('<div data-debug="s">Current Section: <span></span></div>');
@@ -84,21 +95,21 @@
 
       $(document.body).append(el);
 
-      this.debugInfo = el;
+      this.#debugInfo = el;
       this.scroll();
     }
 
     updateDebug(vars) {
       Object.entries(vars).forEach((i) => {
-        this.debugInfo.find(`[data-debug="${i[0]}"] span`).text(i[1]);
+        this.#debugInfo.find(`[data-debug="${i[0]}"] span`).text(i[1]);
       });
     }
 
     toggleDebug(show) {
       if (typeof show === 'undefined') {
-        show = this.debugInfo.css('display') === 'none';
+        show = this.#debugInfo.css('display') === 'none';
       }
-      this.debugInfo.css('display', show ? 'block' : 'none');
+      this.#debugInfo.css('display', show ? 'block' : 'none');
     }
 
     get(name) {
@@ -113,7 +124,7 @@
         const [ name, changes ] = i,
         section = this.get(name);
 
-        if (changes.distance) {
+        if (section && changes.distance) {
           section.distance = changes.distance;
           section.clone.height(section.distance);
         }
@@ -124,7 +135,7 @@
 
     refresh() {
       // Update section distance
-      let newDist = 0, ready = this.isReady();
+      let newDist = 0, ready = this.#isReady();
       Object.values(this.sections).forEach(section => {
         section.top = newDist;
         newDist += section.distance;
@@ -155,7 +166,7 @@
 
     scroll (e) {
       const y = this.scrollWrap[0].scrollTop,
-      ready = this.isReady();
+      ready = this.#isReady();
 
       this.prevIndex = this.index;
       this.previous = this.current;
@@ -195,7 +206,7 @@
       }
     }
 
-    addClone (distance, $el, className) {
+    #addClone (distance, $el, className) {
       let $clone = $('<section>&nbsp;</section>');
       $clone.height(distance);
       $clone.addClass(this.cloneClass);
@@ -214,8 +225,17 @@
         return;
       }
 
+      if (!this.sections.length) {
+        $(document.body).addClass('stay-js');
+      }
+
+      if (!this.#windowClone) {
+        this.#windowClone = this.#addClone('100vh', false, 'window-clone');
+        this.wrap.prepend(this.#windowClone);
+      }
+
       // Show and update debug info if turned on
-      if (this.isDebug) {
+      if (this.#isDebug) {
         this.toggleDebug(true);
         this.scroll();
       }
@@ -225,7 +245,7 @@
       if ($el.length) {
         $el.addClass('locked');
 
-        let $clone = this.addClone(section.distance, $el);
+        let $clone = this.#addClone(section.distance, $el);
 
         if (section.css) {
           $el.css(section.css);
