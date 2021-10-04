@@ -32,7 +32,7 @@
       this.wrap.prepend(this.addClone('100vh', false, 'window-clone'));
 
       if (Array.isArray(opts.sections)) {
-        opts.sections.forEach((s) => this.addSection(s));
+        this.add(opts.sections);
       }
 
       if (opts.allowScroll === false) {
@@ -78,6 +78,10 @@
         'opacity': '0.75'
       })
 
+      if (!this.sections.length) {
+        el.css('display', 'none');
+      }
+
       $(document.body).append(el);
 
       this.debugInfo = el;
@@ -88,6 +92,13 @@
       Object.entries(vars).forEach((i) => {
         this.debugInfo.find(`[data-debug="${i[0]}"] span`).text(i[1]);
       });
+    }
+
+    toggleDebug(show) {
+      if (typeof show === 'undefined') {
+        show = this.debugInfo.css('display') === 'none';
+      }
+      this.debugInfo.css('display', show ? 'block' : 'none');
     }
 
     get(name) {
@@ -197,7 +208,18 @@
       return $clone;
     }
 
-    addSection (section) {
+    add (section) {
+      if (Array.isArray(section)) {
+        section.forEach((s) => this.add(s));
+        return;
+      }
+
+      // Show and update debug info if turned on
+      if (this.isDebug) {
+        this.toggleDebug(true);
+        this.scroll();
+      }
+
       let $el = $(section.selector).first();
 
       if ($el.length) {
@@ -240,6 +262,10 @@
       return Math.max(a * multi, 0);
     }
 
+    static rsplit(amt, from, to) {
+      return 1 - this.split(amt, from, to);
+    }
+
     static splitInOut(amt, from, peak, to) {
        let before = this.split(amt, from, peak),
        after = 1 - this.split(amt, peak, to);
@@ -279,7 +305,14 @@
       return amt;
     }
 
-    static tween(start, end, amt, ease) {
+    static tween(start, end, amt, ease, limit) {
+      if (limit !== false) {
+        if (amt < 0) {
+          amt = 0;
+        } else if (amt > 1) {
+          amt = 1;
+        }
+      }
       amt = this.ease(amt, ease);
       return start + (amt * (end - start));
     }
