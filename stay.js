@@ -157,6 +157,12 @@
       if (!Array.isArray(this.sections)) {
         return false;
       }
+
+      // Try return via index
+      if (typeof name === 'number') {
+        return this.sections[name];
+      }
+      // Otherwise, lookup via name
       return this.sections.find(s => s.name === name);
     }
 
@@ -227,30 +233,44 @@
     }
 
     scrollToTop(args) {
-      return this.scrollTo(0, args)
+      return this.scrollToY(0, args)
     }
 
-    scrollTo (y, args) {
+    scrollToY(index, args) {
       args = args || {};
+      args.type = 'Y';
+      this.scrollTo(index, args);
+    }
 
-      args.duration = args.duration || 500;
+    scrollTo (to, args) {
+      // Allow shorthand duration
+      let duration = typeof args === 'number' ? args : args.duration || 500;
+
+      args = typeof args == 'object' ? args : {};
+      args.duration = duration;
       args.ease = args.ease || 'swing';
       args.smooth = args.smooth !== false;
+      args.type = args.type || 'index';
 
-
-      if (typeof y === 'string') {
-        y = isNaN(y) ? this.get(y) : parseInt(y);
+      if (typeof to === 'string') {
+        to = isNaN(to) ? this.get(to) : parseInt(to);
       }
 
-      if (typeof y === 'object') {
-        let section = y;
-        y = y.top || 0;
+      // If index is passed, change destination to the section object
+      if (typeof to === 'number' && args.type == 'index') {
+        to = this.get(to);
+      }
+
+      // If destination is an object, assume it's a section and apply modifiers
+      if (typeof to === 'object') {
+        let section = to;
+        to = to.top || 0;
 
         // Scroll to section %
         if (args.percent) {
-          y += ((section.distance / 100) * args.percent) + 1;
+          to += ((section.distance / 100) * args.percent) + 1;
         } else if (args.top) {
-          y += args.top;
+          to += args.top;
         }
       }
 
@@ -277,10 +297,10 @@
       if (args.smooth) {
         $(this.scrollWrap).stop()
         .animate({
-          scrollTop: y
+          scrollTop: to
         }, args.duration, args.ease, afterScroll);
       } else {
-        $(this.scrollWrap)[0].scrollTo(0, y);
+        $(this.scrollWrap)[0].scrollTo(0, to);
         afterScroll();
       }
     }
