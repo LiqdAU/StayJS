@@ -5,7 +5,7 @@
 
     classes = {
       wrap: 'stay-wrap',
-      scrollWrap: 'stay-scroll-wrap',
+      scroller: 'stay-scroller',
       hidden: 'stay-hidden',
       section: {
         class: 'stay-section',
@@ -22,26 +22,34 @@
       }
     }
 
-    distance = 0;
-    options = {};
-    wrap = null;
-    index = -1;
-    current = false;
-    prevIndex = -1;
-    prevSection = false;
+    options = {}
+    is = {
+      debug: false,
+      absolute: false
+    }
+    store = {
+      nav: {},
+      page: {
+        distance: 0,
+        current: null,
+        index: -1,
+        previous: false,
+        previousIndex: -1,
+        info: {}
+      },
+      elements: {
+        wrap: null,
+        scroller: null,
+        debug: null,
+        windowClone: null
+      },
+      callback: {
+        isReady: () => true,
+        onScroll: (e) => this.scroll(e),
+        hashChange: (e) => this.scrollToHash()
+      }
 
-    #isAbsolute = false;
-    #isReady = null;
-    #isDebug = false;
-    #currentInfo = {};
-
-    // Elements
-    #debugInfo = null;
-    #windowClone = null;
-    #nav = null;
-
-    #onScroll = (e) => this.scroll(e);
-    #hashChange = (e) => this.scrollToHash();
+    }
 
     constructor(opts) {
       // Set classes on construct if passed in
@@ -50,18 +58,18 @@
         ...opts.classes
       } : this.classes;
 
-      this.wrap = $(opts.wrap || $('main'));
+      this.store.elements.wrap = $(opts.wrap || $('main'));
       this.reset(opts);
 
       // Events
-      $(this.scrollWrap).on('scroll', this.#onScroll);
-      window.addEventListener("hashchange", this.#hashChange, false);
+      $(this.store.elements.scroller).on('scroll', this.store.callback.onScroll);
+      window.addEventListener("hashchange", this.store.callback.hashChange, false);
       $(document).on('click', '.' + this.classes.nav.back, () => this.previous());
       $(document).on('click', '.' + this.classes.nav.next, () => this.next());
     }
 
     dispose() {
-      $(this.scrollWrap).off('scroll', this.#onScroll);
+      $(this.store.elements.scroller).off('scroll', this.store.callback.onScroll);
 
       this.debug(false);
       this.removeAll();
@@ -69,25 +77,26 @@
 
     reset(opts) {
       opts = {...this.options, ...opts};
-      this.sections = [];
-      this.scrollWrap = $(opts.scrollWrap || document.documentElement);
 
       // Defaults
       opts.debug = !!opts.debug;
       opts.absolute = !!opts.absolute;
-      opts.navigation = opts.navigation || false;
+      opts.navigation = opts.navigation || {};
       opts.allowScroll = opts.allowScroll !== false;
-      opts.isReady = typeof opts.isReady !== 'function' ? () => true : opts.isReady;
+      opts.isReady = typeof opts.isReady !== 'function' ? this.store.callback.isReady : opts.isReady;
+
+      this.sections = [];
+      this.store.elements.scroller = $(opts.scroller || document.documentElement);
 
       // Remove window clones
       $('.' + this.classes.clone.window).remove();
-      this.#windowClone = null;
+      this.store.elements.windowClone = null;
 
-      this.#isReady = opts.isReady;
+      this.store.callback.isReady = opts.isReady;
 
       // Add classes to wrap/scrollwrap
-      this.wrap.addClass(this.classes.wrap);
-      this.scrollWrap.addClass(this.classes.scrollWrap)
+      this.store.elements.wrap.addClass(this.classes.wrap);
+      this.store.elements.scroller.addClass(this.classes.scroller)
 
       this.setScroll(opts.allowScroll);
       this.setAbsolute(opts.absolute);
@@ -107,10 +116,10 @@
     }
 
     debug(toggle) {
-      this.#isDebug = toggle !== false;
+      this.is.debug = toggle !== false;
 
-      if (!this.#isDebug) {
-        this.#debugInfo = false;
+      if (!this.is.debug) {
+        this.store.elements.debug = false;
         $('.stay-debug').css('opacity', 0);
         setTimeout(() => $('.stay-debug').remove(), 800);
         return;
@@ -148,29 +157,31 @@
 
       $(document.body).append(el);
 
-      this.#debugInfo = el;
+      this.store.elements.debug = el;
       this.scroll();
     }
 
     updateDebug(vars) {
-      if (this.#debugInfo) {
+      if (this.store.elements.debug) {
         Object.entries(vars).forEach((i) => {
-          this.#debugInfo.find(`[data-debug="${i[0]}"] span`).text(i[1]);
+          this.store.elements.debug.find(`[data-debug="${i[0]}"] span`).text(i[1]);
         });
       }
     }
 
     toggleDebug(show) {
       if (typeof show === 'undefined') {
-        show = this.#debugInfo.css('display') === 'none';
+        show = this.store.elements.debug.css('display') === 'none';
       }
-      this.#debugInfo.css('display', show ? 'block' : 'none');
+      this.store.elements.debug.css('display', show ? 'block' : 'none');
     }
 
-    triggerChange(section, index, forward) {
-      this.setNavigation({ update: true });
+    triggerChange(section, forward, index) {
+      if (this.store.nav && this.store.nav.updateOnChange) {
+        this.setNavigation({ update: true });
+      }
 
-      $(this.scrollWrap).trigger('stayChange', [ section, index, forward]);
+      $(this.store.elements.scroller).trigger('stayChange', [ section, index, forward]);
     }
 
     get(name) {
@@ -187,7 +198,7 @@
     }
 
     info() {
-      return this.#currentInfo;
+      return this.store.page.info;
     }
 
     update (sections) {
@@ -206,7 +217,7 @@
 
     refresh() {
       // Update section distance
-      let newDist = 0, ready = this.#isReady();
+      let newDist = 0, ready = this.store.callback.isReady();
       this.forEach(section => {
         section.top = newDist;
         newDist += section.distance;
@@ -215,10 +226,10 @@
           section.setup(section);
         }
       });
-      this.distance = newDist;
+      this.store.page.distance = newDist;
 
-      if (ready && this.current && typeof this.current.before === 'function') {
-        this.current.before(this.current);
+      if (ready && this.store.page.current && typeof this.store.page.current.before === 'function') {
+        this.store.page.current.before(this.store.page.current);
       }
 
       // Trigger scroll
@@ -227,11 +238,11 @@
     }
 
     setNavigation(opts) {
-      opts = typeof opts === 'object' ? opts : {
+      opts = this._options(opts, {
         enabled: opts,
         hidden: false,
         update: true
-      };
+      }, true)
 
       // Setup or destroy if enabled is set
       if (opts.hasOwnProperty('enabled')) {
@@ -241,45 +252,53 @@
           next = $('<a>', { href: '#', class: this.classes.nav.next });
 
           wrap.append([ back, next ]);
-          $(this.scrollWrap).append(wrap);
+          $(this.store.elements.scroller).append(wrap);
 
-          this.#nav = { wrap, back, next };
-        } else if (this.#nav) {
-          this.#nav.wrap.remove();
-          this.#nav = null;
+          this.store.nav = {
+            wrap,
+            back,
+            next,
+            updateOnChange: true
+          };
+          opts.update = true;
+        } else if (this.store.nav) {
+          this.store.nav.wrap.remove();
+          this.store.nav = null;
         }
-        opts.update = !!opts.enabled;
+      }
+
+      // Must be enabled to continue
+      if (this.store.nav == null) {
+        return;
       }
 
       // Hide navigation by hiding the wrapper
-      if (opts.hasOwnProperty('hidden') && this.#nav) {
-        let hidden = opts.hidden === true;
-        this.#nav.wrap.toggleClass(this.classes.hidden, hidden);
-        opts.update = !hidden;
+      if (opts.hasOwnProperty('hidden')) {
+        this.store.nav.wrap.toggleClass(this.classes.hidden, opts.hidden);
       }
 
       // Update the labels
-      if (opts.hasOwnProperty('update') && opts.update === true && this.#nav) {
-        let show = this.current.showNav !== false,
-        next = this.get(this.index + 1),
-        prev = this.get(this.index - 1);
+      if (opts.hasOwnProperty('update') && opts.update === true && this.store.nav) {
+        let show = this.store.page.current && this.store.page.current.showNav !== false,
+        next = this.get(this.store.page.index + 1),
+        prev = this.get(this.store.page.index - 1);
 
         if (show && prev && prev.showInNav !== false) {
-          this.#nav.back
+          this.store.nav.back
           .text(prev.label || prev.name)
           .removeClass(this.classes.hidden);
         } else {
-          this.#nav.back
+          this.store.nav.back
           .text('')
           .addClass(this.classes.hidden);
         }
 
         if (show && next && next.showInNav !== false) {
-          this.#nav.next
+          this.store.nav.next
           .text(next.label || next.name)
           .removeClass(this.classes.hidden);
         } else {
-          this.#nav.next
+          this.store.nav.next
           .text('')
           .addClass(this.classes.hidden);
         }
@@ -288,11 +307,11 @@
 
     setAbsolute(absolute) {
       absolute = !!absolute;
-      this.#isAbsolute = absolute;
-      $(this.wrap).toggleClass('stay-abs', absolute);
+      this.is.absolute = absolute;
+      $(this.store.elements.wrap).toggleClass('stay-abs', absolute);
 
       if (absolute) {
-        let y = this.scrollWrap[0].scrollTop;
+        let y = this.store.elements.scroller[0].scrollTop;
         $('.' + this.classes.section.class).css('transform', 'translate3d(0, ' + y + 'px, 0)');
       } else {
         $('.' + this.classes.section.class).css('transform', 'none');
@@ -309,21 +328,21 @@
     }
 
     next(args) {
-      let next = this.get(this.index + 1);
+      let next = this.get(this.store.page.index + 1);
       if (next) {
         this.scrollTo(next, args);
       }
     }
 
     previous(args) {
-      let prev = this.get(this.index - 1);
+      let prev = this.get(this.store.page.index - 1);
       if (prev) {
         this.scrollTo(prev, args);
       }
     }
 
     setScroll(toggle) {
-       $(this.scrollWrap).css('overflow', toggle ? 'auto' : 'hidden');
+       $(this.store.elements.scroller).css('overflow', toggle ? 'auto' : 'hidden');
     }
 
     scrollToHash(opts) {
@@ -361,6 +380,7 @@
       args.ease = args.ease || 'swing';
       args.smooth = args.smooth !== false;
       args.type = args.type || 'index';
+      args.hideNav = args.hideNav !== false;
 
       if (typeof to === 'string') {
         to = isNaN(to) ? this.get(to) : parseInt(to);
@@ -390,17 +410,19 @@
       }
 
 
-      let isAbs = this.#isAbsolute,
+      let isAbs = this.is.absolute,
       afterScroll = () => {
         // Set absolute back to true
         if (isAbs) {
           this.setAbsolute(true);
         }
 
-        this.setNavigation({
-          hidden: false,
-          update: true
-        });
+        if (args.hideNav) {
+          this.setNavigation({
+            hidden: false,
+            update: true
+          });
+        }
 
         this.refresh();
 
@@ -409,51 +431,87 @@
         }
       };
 
-      this.setNavigation({ hidden: true });
+      if (args.hideNav) {
+        this.setNavigation({ hidden: true });
+      }
 
       if (isAbs) {
         this.setAbsolute(false)
       }
 
       if (args.smooth) {
-        $(this.scrollWrap).stop()
+        $(this.store.elements.scroller).stop()
         .animate({
           scrollTop: to
-        }, args.duration, args.ease, afterScroll);
+        }, args.duration, args.ease, () => afterScroll());
       } else {
-        $(this.scrollWrap)[0].scrollTo(0, to);
+        $(this.store.elements.scroller)[0].scrollTo(0, to);
+        this.tidyUntil(this.getFromY(to).index);
         afterScroll();
       }
     }
 
+    tidyUntil(to, from) {
+      from = from || 0;
+
+      if (to < 0 || to >= this.sections.length) {
+        to = this.sections.length - 1;
+      }
+
+      if (from < 0) {
+        from = 0;
+      } else if (from >= this.sections.length) {
+        return false;
+      }
+
+      for (let i = 0; i <= to; i++) {
+        let s = this.sections[i];
+        if (typeof s.cleanup === 'function') {
+          s.cleanup(true)
+        }
+      }
+    }
+
+    getFromY(y) {
+      for (let i = this.sections.length - 1; i >= 0; i--) {
+        let s = this.sections[i];
+        if (s.top <= y) {
+          return s;
+        }
+      }
+      return undefined;
+    }
+
     scroll(e) {
-      const y = this.scrollWrap[0].scrollTop,
-      ready = this.#isReady();
+      const y = this.store.elements.scroller[0].scrollTop,
+      ready = this.store.callback.isReady();
 
       let doneCurrent = false;
 
-      this.prevIndex = this.index;
-      this.prevSection = this.current;
+      this.store.page.previousIndex = this.store.page.index;
+      this.store.page.previous = this.store.page.current;
 
       for (let i = this.sections.length - 1; i >= 0; i--) {
         let s = this.sections[i];
 
-        // Current fix for scrolling through "fixed" elements
-        // TODO - there is probably a better way to do this - while maintaining position: fixed instead of absolute
-        if (this.#isAbsolute) {
+        if (this.is.absolute) {
           $(s.element).css('transform', 'translate3d(0, ' + y + 'px, 0)');
         }
 
         if (!doneCurrent && s.top <= y) {
-          this.current = s;
-          this.index = i;
+          this.store.page.current = s;
+          this.store.page.index = i;
 
-          if (this.prevIndex !== this.index) {
-            let forward = this.prevIndex < this.index;
+          if (this.store.page.previousIndex !== this.store.page.index) {
+            let forward = this.store.page.previousIndex < this.store.page.index;
 
-            this.triggerChange(s, i, forward);
+            this.triggerChange(s, forward, i);
 
-            if (ready && this.prevSection) { this.prevSection.cleanup(forward); }
+
+            /*
+             * Maybe create a change queuing function that allows updates to be grouped/overridden if calling multiple cleanups
+             */
+            if (ready && this.store.page.previous) { this.store.page.previous.cleanup(s, forward); }
             if (ready && typeof s.before === 'function') { s.before(s, forward); }
 
             this.setActive(s);
@@ -464,7 +522,7 @@
             s.onScroll(a, s, sy, y);
           }
 
-          this.#currentInfo = {
+          this.store.page.info = {
             section: s,
             amount: a,
             top: sy
@@ -506,7 +564,7 @@
 
     }
 
-    add (section) {
+    add(section) {
       if (Array.isArray(section)) {
         section.forEach((s) => this.add(s));
         return;
@@ -516,13 +574,13 @@
         $(document.body).addClass('stay-js');
       }
 
-      if (!this.#windowClone) {
-        this.#windowClone = this.#addClone('100vh', false, this.classes.clone.window);
-        this.wrap.prepend(this.#windowClone);
+      if (!this.store.elements.windowClone) {
+        this.store.elements.windowClone = this.#addClone('100vh', false, this.classes.clone.window);
+        this.store.elements.wrap.prepend(this.store.elements.windowClone);
       }
 
       // Show and update debug info if turned on
-      if (this.#isDebug) {
+      if (this.is.debug) {
         this.toggleDebug(true);
         this.scroll();
       }
@@ -542,9 +600,10 @@
           $el.css('z-index', section.zindex);
         }
 
-        section.top = this.distance;
+        section.top = this.store.page.distance;
         section.element = $el[0];
         section.clone = $clone;
+        section.index = this.sections.length;
 
         if (typeof section.cleanup !== 'function') {
           section.cleanup = () => {};
@@ -554,13 +613,25 @@
           section.setup(section);
         }
 
-        this.distance += section.distance || 0;
+        this.store.page.distance += section.distance || 0;
         this.sections.push(section);
       }
     }
 
     forEach (c) {
       return this.sections.forEach(c);
+    }
+
+    _options(opts, defaults, ifnotset) {
+      if (ifnotset) {
+        return typeof opts !== 'object' ? defaults: opts;
+      }
+      defaults = typeof defaults === 'object' ? defaults : {};
+      opts = typeof opts === 'object' ? opts : {};
+      return {
+        ...defaults,
+        ...opts
+      };
     }
 
     /*
