@@ -1,15 +1,9 @@
 (function($) {
 
-  /*
-  .locked
-    position: fixed;
-    pointer-events: none;
-    inset: 0;
-   */
-
   class Stay {
     sections = [];
 
+    sectionClass = 'stay-section';
     activeClass = 'active-screen';
     cloneClass = 'clone-screen';
     distance = 0;
@@ -21,51 +15,95 @@
     prevIndex = -1;
     previous = false;
 
+    #isAbsolute = false;
+
     #isReady = null;
     #isDebug = false;
     #debugInfo = null;
     #windowClone = null;
+    #currentInfo = {};
+
+    #onScroll = (e) => this.scroll(e);
+    #hashChange = (e) => this.hashChange(e);
 
     constructor(opts) {
+      this.wrap = $(opts.wrap || $('main'));
       this.reset(opts);
 
       // Events
-      $(this.scrollWrap).on('scroll', (e) => this.scroll(e));
+      $(this.scrollWrap).on('scroll', this.#onScroll);
+      window.addEventListener("hashchange", this.#hashChange, false);
+    }
+
+    dispose() {
+      $(this.scrollWrap).off('scroll', this.#onScroll);
+
+      this.debug(false);
+      this.removeAll();
+    }
+
+    hashChange() {
+      if (!window.location.hash) {
+        return;
+      }
+
+      const hash = window.location.hash.substring(1),
+      section = this.get(hash);
+
+      if (section) {
+        this.scrollTo(section);
+      }
     }
 
     reset(opts) {
-      this.options = opts = {...this.options, ...opts};
+      opts = {...this.options, ...opts};
       this.sections = [];
-      this.wrap = $(opts.wrap || $('main'));
       this.scrollWrap = $(opts.scrollWrap || document.documentElement);
+
+      // Defaults
+      opts.debug = opts.debug === true;
+      opts.allowScroll = opts.allowScroll === false;
+      opts.absolute = opts.absolute !== false;
+      opts.isReady = typeof opts.isReady !== 'function' ? () => true : opts.isReady;
 
       // Remove window clones
       $('.window-clone').remove();
       this.#windowClone = null;
 
+      this.#isReady = opts.isReady;
+
+      // Add classes to wrap/scrollwrap
       this.wrap.addClass('stay-wrap');
+      this.scrollWrap.addClass('stay-scroll-wrap')
 
-      if (Array.isArray(opts.sections)) {
-        this.add(opts.sections);
-      }
-
-      if (opts.allowScroll === false) {
-        this.setScroll(false);
-      }
-
-      if (typeof opts.isReady === 'function') {
-        this.#isReady = opts.isReady;
-      } else {
-        this.#isReady = () => true;
-      }
+      this.setScroll(!opts.allowScroll);
+      this.setAbsolute(opts.absolute);
 
       if (opts.debug) {
         this.debug();
       }
+
+      // Add sections defined in opts
+      if (Array.isArray(opts.sections)) {
+        this.add(opts.sections);
+      }
+
+      // Save current options for future use
+      this.options = opts;
     }
 
-    debug() {
-      this.#isDebug = true;
+    debug(toggle) {
+      this.#isDebug = toggle !== false;
+
+      if (!this.#isDebug) {
+        this.#debugInfo = false;
+        $('.stay-debug').css('opacity', 0);
+        setTimeout(() => $('.stay-debug').remove(), 800);
+        return;
+      }
+
+      // Removing existing
+      $('.stay-debug').remove();
 
       const el = $('<div class="stay-debug"></div>');
       el.append('<div data-debug="s">Current Section: <span></span></div>');
@@ -86,7 +124,8 @@
         'font-size': '12px',
         'min-width': '300px',
         'pointer-events': 'none',
-        'opacity': '0.75'
+        'opacity': '0.75',
+        'transition': 'opacity 0.5s'
       })
 
       if (!this.sections.length) {
@@ -100,9 +139,11 @@
     }
 
     updateDebug(vars) {
-      Object.entries(vars).forEach((i) => {
-        this.#debugInfo.find(`[data-debug="${i[0]}"] span`).text(i[1]);
-      });
+      if (this.#debugInfo) {
+        Object.entries(vars).forEach((i) => {
+          this.#debugInfo.find(`[data-debug="${i[0]}"] span`).text(i[1]);
+        });
+      }
     }
 
     toggleDebug(show) {
@@ -117,6 +158,10 @@
         return false;
       }
       return this.sections.find(s => s.name === name);
+    }
+
+    now() {
+      return this.#currentInfo;
     }
 
     update (sections) {
@@ -136,9 +181,13 @@
     refresh() {
       // Update section distance
       let newDist = 0, ready = this.#isReady();
-      Object.values(this.sections).forEach(section => {
+      this.forEach(section => {
         section.top = newDist;
         newDist += section.distance;
+
+        if (typeof section.setup === 'function') {
+          section.setup(section);
+        }
       });
       this.distance = newDist;
 
@@ -149,6 +198,19 @@
       // Trigger scroll
       this.scroll();
       setTimeout(() => this.scroll(), 500);
+    }
+
+    setAbsolute(absolute) {
+      absolute = !!absolute;
+      this.#isAbsolute = absolute;
+      $(this.wrap).toggleClass('stay-abs', absolute);
+
+      if (absolute) {
+        let y = this.scrollWrap[0].scrollTop;
+        $('.' + this.sectionClass).css('transform', 'translate3d(0, ' + y + 'px, 0)');
+      } else {
+        $('.' + this.sectionClass).css('transform', 'none');
+      }
     }
 
     setActive(name) {
@@ -164,16 +226,84 @@
        $(this.scrollWrap).css('overflow', toggle ? 'auto' : 'hidden');
     }
 
-    scroll (e) {
+    scrollToTop(args) {
+      return this.scrollTo(0, args)
+    }
+
+    scrollTo (y, args) {
+      args = args || {};
+
+      args.duration = args.duration || 500;
+      args.ease = args.ease || 'swing';
+      args.smooth = args.smooth !== false;
+
+
+      if (typeof y === 'string') {
+        y = isNaN(y) ? this.get(y) : parseInt(y);
+      }
+
+      if (typeof y === 'object') {
+        let section = y;
+        y = y.top || 0;
+
+        // Scroll to section %
+        if (args.percent) {
+          y += ((section.distance / 100) * args.percent) + 1;
+        } else if (args.top) {
+          y += args.top;
+        }
+      }
+
+
+      let isAbs = this.#isAbsolute,
+      afterScroll = () => {
+        // Set absolute back to true
+        if (isAbs) {
+          this.setAbsolute(true);
+        }
+
+        this.refresh();
+
+        if (typeof args.complete === 'function') {
+          args.complete();
+        }
+      };
+
+
+      if (isAbs) {
+        this.setAbsolute(false)
+      }
+
+      if (args.smooth) {
+        $(this.scrollWrap).stop()
+        .animate({
+          scrollTop: y
+        }, args.duration, args.ease, afterScroll);
+      } else {
+        $(this.scrollWrap)[0].scrollTo(0, y);
+        afterScroll();
+      }
+    }
+
+    scroll(e) {
       const y = this.scrollWrap[0].scrollTop,
       ready = this.#isReady();
+
+      let doneCurrent = false;
 
       this.prevIndex = this.index;
       this.previous = this.current;
 
       for (let i = this.sections.length - 1; i >= 0; i--) {
         let s = this.sections[i];
-        if (s.top <= y) {
+
+        // Current fix for scrolling through "fixed" elements
+        // TODO - there is probably a better way to do this - while maintaining position: fixed instead of absolute
+        if (this.#isAbsolute) {
+          $(s.element).css('transform', 'translate3d(0, ' + y + 'px, 0)');
+        }
+
+        if (!doneCurrent && s.top <= y) {
           this.current = s;
           this.index = i;
 
@@ -194,6 +324,12 @@
             s.onScroll(a, s, sy, y);
           }
 
+          this.#currentInfo = {
+            section: s,
+            amount: a,
+            top: sy
+          };
+
           this.updateDebug({
             s: s.name,
             sy,
@@ -201,7 +337,7 @@
             a: Math.floor(a * 100)
           });
 
-          break;
+          doneCurrent = true;
         }
       }
     }
@@ -217,6 +353,17 @@
       }
 
       return $clone;
+    }
+
+    removeAll() {
+      this.sections.forEach((s, i) => {
+
+
+      });
+    }
+
+    remove(section) {
+
     }
 
     add (section) {
@@ -243,7 +390,7 @@
       let $el = $(section.selector).first();
 
       if ($el.length) {
-        $el.addClass('locked');
+        $el.addClass(this.sectionClass);
 
         let $clone = this.#addClone(section.distance, $el);
 
@@ -272,14 +419,19 @@
       }
     }
 
+    forEach (c) {
+      return this.sections.forEach(c);
+    }
+
     /*
      * Math Helpers
      */
 
-    static split(amt, from, to) {
+    static split(amt, from, to, limit) {
       let a = amt - from,
-      multi = 1 / (to - from);
-      return Math.max(a * multi, 0);
+      multi = 1 / (to - from),
+      val = a * multi;
+      return limit !== false ? Math.min(Math.max(val, 0), 1) : val;
     }
 
     static rsplit(amt, from, to) {

@@ -1,0 +1,25 @@
+.stay-wrap,
+.stay-scroll-wrap {
+  position: relative;
+}
+
+.stay-section {
+  position: fixed;
+  pointer-events: none;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100vh;
+
+  .stay-wrap.stay-abs & {
+    position: absolute;
+
+    &.active-screen {
+      pointer-events: all;
+    }
+  }
+}
+
+.clone-screen {
+  pointer-events: none;
+}
