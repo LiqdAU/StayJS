@@ -3,36 +3,61 @@
   class Stay {
     sections = [];
 
-    sectionClass = 'stay-section';
-    activeClass = 'active-screen';
-    cloneClass = 'clone-screen';
-    distance = 0;
+    classes = {
+      wrap: 'stay-wrap',
+      scrollWrap: 'stay-scroll-wrap',
+      hidden: 'stay-hidden',
+      section: {
+        class: 'stay-section',
+        active: 'active-screen',
+      },
+      clone: {
+        class: 'clone-screen',
+        window: 'window-clone',
+      },
+      nav: {
+        wrap: 'stay-nav',
+        back: 'stay-go-back',
+        next: 'stay-go-next'
+      }
+    }
 
+    distance = 0;
     options = {};
     wrap = null;
     index = -1;
     current = false;
     prevIndex = -1;
-    previous = false;
+    prevSection = false;
 
     #isAbsolute = false;
-
     #isReady = null;
     #isDebug = false;
-    #debugInfo = null;
-    #windowClone = null;
     #currentInfo = {};
 
+    // Elements
+    #debugInfo = null;
+    #windowClone = null;
+    #nav = null;
+
     #onScroll = (e) => this.scroll(e);
-    #hashChange = (e) => this.hashChange(e);
+    #hashChange = (e) => this.scrollToHash();
 
     constructor(opts) {
+      // Set classes on construct if passed in
+      this.classes = typeof opts.classes === 'object' ? {
+        ...this.classes,
+        ...opts.classes
+      } : this.classes;
+
       this.wrap = $(opts.wrap || $('main'));
       this.reset(opts);
 
       // Events
       $(this.scrollWrap).on('scroll', this.#onScroll);
       window.addEventListener("hashchange", this.#hashChange, false);
+      $(document).on('click', '.' + this.classes.nav.back, () => this.previous());
+      $(document).on('click', '.' + this.classes.nav.next, () => this.next());
     }
 
     dispose() {
@@ -42,42 +67,31 @@
       this.removeAll();
     }
 
-    hashChange() {
-      if (!window.location.hash) {
-        return;
-      }
-
-      const hash = window.location.hash.substring(1),
-      section = this.get(hash);
-
-      if (section) {
-        this.scrollTo(section);
-      }
-    }
-
     reset(opts) {
       opts = {...this.options, ...opts};
       this.sections = [];
       this.scrollWrap = $(opts.scrollWrap || document.documentElement);
 
       // Defaults
-      opts.debug = opts.debug === true;
-      opts.allowScroll = opts.allowScroll === false;
-      opts.absolute = opts.absolute !== false;
+      opts.debug = !!opts.debug;
+      opts.absolute = !!opts.absolute;
+      opts.navigation = opts.navigation || false;
+      opts.allowScroll = opts.allowScroll !== false;
       opts.isReady = typeof opts.isReady !== 'function' ? () => true : opts.isReady;
 
       // Remove window clones
-      $('.window-clone').remove();
+      $('.' + this.classes.clone.window).remove();
       this.#windowClone = null;
 
       this.#isReady = opts.isReady;
 
       // Add classes to wrap/scrollwrap
-      this.wrap.addClass('stay-wrap');
-      this.scrollWrap.addClass('stay-scroll-wrap')
+      this.wrap.addClass(this.classes.wrap);
+      this.scrollWrap.addClass(this.classes.scrollWrap)
 
-      this.setScroll(!opts.allowScroll);
+      this.setScroll(opts.allowScroll);
       this.setAbsolute(opts.absolute);
+      this.setNavigation(opts.navigation);
 
       if (opts.debug) {
         this.debug();
@@ -153,6 +167,12 @@
       this.#debugInfo.css('display', show ? 'block' : 'none');
     }
 
+    triggerChange(section, index, forward) {
+      this.setNavigation({ update: true });
+
+      $(this.scrollWrap).trigger('stayChange', [ section, index, forward]);
+    }
+
     get(name) {
       if (!Array.isArray(this.sections)) {
         return false;
@@ -166,7 +186,7 @@
       return this.sections.find(s => s.name === name);
     }
 
-    now() {
+    info() {
       return this.#currentInfo;
     }
 
@@ -206,6 +226,66 @@
       setTimeout(() => this.scroll(), 500);
     }
 
+    setNavigation(opts) {
+      opts = typeof opts === 'object' ? opts : {
+        enabled: opts,
+        hidden: false,
+        update: true
+      };
+
+      // Setup or destroy if enabled is set
+      if (opts.hasOwnProperty('enabled')) {
+        if (opts.enabled) {
+          let wrap = $('<nav>', { class: this.classes.nav.wrap }),
+          back = $('<a>', { href: '#', class: this.classes.nav.back }),
+          next = $('<a>', { href: '#', class: this.classes.nav.next });
+
+          wrap.append([ back, next ]);
+          $(this.scrollWrap).append(wrap);
+
+          this.#nav = { wrap, back, next };
+        } else if (this.#nav) {
+          this.#nav.wrap.remove();
+          this.#nav = null;
+        }
+        opts.update = !!opts.enabled;
+      }
+
+      // Hide navigation by hiding the wrapper
+      if (opts.hasOwnProperty('hidden') && this.#nav) {
+        let hidden = opts.hidden === true;
+        this.#nav.wrap.toggleClass(this.classes.hidden, hidden);
+        opts.update = !hidden;
+      }
+
+      // Update the labels
+      if (opts.hasOwnProperty('update') && opts.update === true && this.#nav) {
+        let show = this.current.showNav !== false,
+        next = this.get(this.index + 1),
+        prev = this.get(this.index - 1);
+
+        if (show && prev && prev.showInNav !== false) {
+          this.#nav.back
+          .text(prev.label || prev.name)
+          .removeClass(this.classes.hidden);
+        } else {
+          this.#nav.back
+          .text('')
+          .addClass(this.classes.hidden);
+        }
+
+        if (show && next && next.showInNav !== false) {
+          this.#nav.next
+          .text(next.label || next.name)
+          .removeClass(this.classes.hidden);
+        } else {
+          this.#nav.next
+          .text('')
+          .addClass(this.classes.hidden);
+        }
+      }
+    }
+
     setAbsolute(absolute) {
       absolute = !!absolute;
       this.#isAbsolute = absolute;
@@ -213,9 +293,9 @@
 
       if (absolute) {
         let y = this.scrollWrap[0].scrollTop;
-        $('.' + this.sectionClass).css('transform', 'translate3d(0, ' + y + 'px, 0)');
+        $('.' + this.classes.section.class).css('transform', 'translate3d(0, ' + y + 'px, 0)');
       } else {
-        $('.' + this.sectionClass).css('transform', 'none');
+        $('.' + this.classes.section.class).css('transform', 'none');
       }
     }
 
@@ -223,13 +303,43 @@
       let active = typeof name === 'string' ? this.sections.find(s => s.name === name) : name;
 
       if (active) {
-        $(`.${this.activeClass}`).removeClass(this.activeClass);
-        $(active.element).addClass(this.activeClass);
+        $('.' + this.classes.section.active).removeClass(this.classes.section.active);
+        $(active.element).addClass(this.classes.section.active);
       }
     }
 
-    setScroll (toggle) {
+    next(args) {
+      let next = this.get(this.index + 1);
+      if (next) {
+        this.scrollTo(next, args);
+      }
+    }
+
+    previous(args) {
+      let prev = this.get(this.index - 1);
+      if (prev) {
+        this.scrollTo(prev, args);
+      }
+    }
+
+    setScroll(toggle) {
        $(this.scrollWrap).css('overflow', toggle ? 'auto' : 'hidden');
+    }
+
+    scrollToHash(opts) {
+      if (!window.location.hash) {
+        return false;
+      }
+
+      const hash = window.location.hash.substring(1),
+      section = this.get(hash);
+
+      if (section) {
+        this.scrollTo(section, opts);
+        return true;
+      } else {
+        return false;
+      }
     }
 
     scrollToTop(args) {
@@ -242,12 +352,12 @@
       this.scrollTo(index, args);
     }
 
-    scrollTo (to, args) {
+    scrollTo(to, args) {
       // Allow shorthand duration
-      let duration = typeof args === 'number' ? args : args.duration || 500;
+      let duration = typeof args === 'number' ? args : false;
 
       args = typeof args == 'object' ? args : {};
-      args.duration = duration;
+      args.duration = duration ? duration : args.duration || this.options.navigation.speed || 1000;
       args.ease = args.ease || 'swing';
       args.smooth = args.smooth !== false;
       args.type = args.type || 'index';
@@ -263,12 +373,17 @@
 
       // If destination is an object, assume it's a section and apply modifiers
       if (typeof to === 'object') {
-        let section = to;
+        let section = to,
+        percent = section.defaultPercent || 0;
         to = to.top || 0;
 
+        if (typeof args.percent === 'number') {
+          percent = args.percent;
+        }
+
         // Scroll to section %
-        if (args.percent) {
-          to += ((section.distance / 100) * args.percent) + 1;
+        if (percent) {
+          to += ((section.distance / 100) * percent) + 1;
         } else if (args.top) {
           to += args.top;
         }
@@ -282,6 +397,11 @@
           this.setAbsolute(true);
         }
 
+        this.setNavigation({
+          hidden: false,
+          update: true
+        });
+
         this.refresh();
 
         if (typeof args.complete === 'function') {
@@ -289,6 +409,7 @@
         }
       };
 
+      this.setNavigation({ hidden: true });
 
       if (isAbs) {
         this.setAbsolute(false)
@@ -312,7 +433,7 @@
       let doneCurrent = false;
 
       this.prevIndex = this.index;
-      this.previous = this.current;
+      this.prevSection = this.current;
 
       for (let i = this.sections.length - 1; i >= 0; i--) {
         let s = this.sections[i];
@@ -330,12 +451,11 @@
           if (this.prevIndex !== this.index) {
             let forward = this.prevIndex < this.index;
 
-            if (ready && this.previous) {
-              this.previous.cleanup(forward);
-            }
-            if (ready && typeof s.before === 'function') {
-              s.before(s, forward);
-            }
+            this.triggerChange(s, i, forward);
+
+            if (ready && this.prevSection) { this.prevSection.cleanup(forward); }
+            if (ready && typeof s.before === 'function') { s.before(s, forward); }
+
             this.setActive(s);
           }
 
@@ -365,7 +485,7 @@
     #addClone (distance, $el, className) {
       let $clone = $('<section>&nbsp;</section>');
       $clone.height(distance);
-      $clone.addClass(this.cloneClass);
+      $clone.addClass(this.classes.clone.class);
       $clone.addClass(className);
 
       if ($el) {
@@ -397,7 +517,7 @@
       }
 
       if (!this.#windowClone) {
-        this.#windowClone = this.#addClone('100vh', false, 'window-clone');
+        this.#windowClone = this.#addClone('100vh', false, this.classes.clone.window);
         this.wrap.prepend(this.#windowClone);
       }
 
@@ -410,7 +530,7 @@
       let $el = $(section.selector).first();
 
       if ($el.length) {
-        $el.addClass(this.sectionClass);
+        $el.addClass(this.classes.section.class);
 
         let $clone = this.#addClone(section.distance, $el);
 

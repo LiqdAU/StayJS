@@ -23,3 +23,38 @@
 .clone-screen {
   pointer-events: none;
 }
+
+.stay-hidden {
+  opacity: 0;
+  pointer-events: none !important;
+}
+
+.stay-nav {
+  pointer-events: none;
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  z-index: 999;
+  transition: opacity 1s;
+
+  a {
+    pointer-events: all;
+    position: absolute;
+    right: 30px;
+    transition: opacity 1s 0.5s;
+
+    &.stay-hidden {
+      transition: opacity 0.5s;
+    }
+
+    &.stay-go-back {
+      top: 80px;
+    }
+
+    &.stay-go-next {
+      bottom: 40px;
+    }
+  }
+}
