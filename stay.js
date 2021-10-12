@@ -43,7 +43,7 @@
         debug: null,
         windowClone: null
       },
-      callback: {
+      fn: {
         isReady: () => true,
         onScroll: (e) => this.scroll(e),
         hashChange: (e) => this.scrollToHash()
@@ -62,14 +62,18 @@
       this.reset(opts);
 
       // Events
-      $(this.store.elements.scroller).on('scroll', this.store.callback.onScroll);
-      window.addEventListener("hashchange", this.store.callback.hashChange, false);
+      $(this.store.elements.scroller).on('scroll', this.store.fn.onScroll);
+      window.addEventListener("hashchange", () => {
+        if (!this.is.scrolling) {
+          this.store.fn.hashChange();
+        }
+      }, false);
       $(document).on('click', '.' + this.classes.nav.back, () => this.previous());
       $(document).on('click', '.' + this.classes.nav.next, () => this.next());
     }
 
     dispose() {
-      $(this.store.elements.scroller).off('scroll', this.store.callback.onScroll);
+      $(this.store.elements.scroller).off('scroll', this.store.fn.onScroll);
 
       this.debug(false);
       this.removeAll();
@@ -83,16 +87,16 @@
       opts.absolute = !!opts.absolute;
       opts.navigation = opts.navigation || {};
       opts.allowScroll = opts.allowScroll !== false;
-      opts.isReady = typeof opts.isReady !== 'function' ? this.store.callback.isReady : opts.isReady;
+      opts.isReady = typeof opts.isReady !== 'function' ? this.store.fn.isReady : opts.isReady;
 
       this.sections = [];
-      this.store.elements.scroller = $(opts.scroller || document.documentElement);
+      this.store.elements.scroller = $(opts.scroller || document);
 
       // Remove window clones
       $('.' + this.classes.clone.window).remove();
       this.store.elements.windowClone = null;
 
-      this.store.callback.isReady = opts.isReady;
+      this.store.fn.isReady = opts.isReady;
 
       // Add classes to wrap/scrollwrap
       this.store.elements.wrap.addClass(this.classes.wrap);
@@ -177,8 +181,8 @@
     }
 
     triggerChange(section, forward, index) {
-      if (this.store.nav && this.store.nav.updateOnChange) {
-        this.setNavigation({ update: true });
+      if (this.store.nav && !this.is.scrolling) {
+        this.setNavigation({ update: true, fadeDelay: 1000 });
       }
 
       $(this.store.elements.scroller).trigger('stayChange', [ section, index, forward]);
@@ -217,7 +221,7 @@
 
     refresh() {
       // Update section distance
-      let newDist = 0, ready = this.store.callback.isReady();
+      let newDist = 0, ready = this.store.fn.isReady();
       this.forEach(section => {
         section.top = newDist;
         newDist += section.distance;
@@ -275,18 +279,38 @@
       // Hide navigation by hiding the wrapper
       if (opts.hasOwnProperty('hidden')) {
         this.store.nav.wrap.toggleClass(this.classes.hidden, opts.hidden);
+        if (opts.hidden) {
+          this.store.nav.back.addClass(this.classes.hidden);
+          this.store.nav.next.addClass(this.classes.hidden);
+        }
       }
 
       // Update the labels
       if (opts.hasOwnProperty('update') && opts.update === true && this.store.nav) {
         let show = this.store.page.current && this.store.page.current.showNav !== false,
         next = this.get(this.store.page.index + 1),
-        prev = this.get(this.store.page.index - 1);
+        prev = this.get(this.store.page.index - 1),
+        delay = opts.fadeDelay || 0;
+
+        if (this.store.nav.prevTimeout) {
+          clearTimeout(this.store.nav.prevTimeout);
+        }
+        if (this.store.nav.nextTimeout) {
+          clearTimeout(this.store.nav.nextTimeout);
+        }
 
         if (show && prev && prev.showInNav !== false) {
-          this.store.nav.back
-          .text(prev.label || prev.name)
-          .removeClass(this.classes.hidden);
+          let unhide = () => {
+            this.store.nav.back
+            .text(prev.label || prev.name)
+            .attr('href', '#' + prev.name)
+
+            this.store.nav.back.removeClass(this.classes.hidden);
+          };
+          if (delay) {
+            this.store.nav.back.addClass(this.classes.hidden);
+          }
+          this.store.nav.prevTimeout = delay ? setTimeout(unhide, delay) : unhide();
         } else {
           this.store.nav.back
           .text('')
@@ -294,9 +318,17 @@
         }
 
         if (show && next && next.showInNav !== false) {
-          this.store.nav.next
-          .text(next.label || next.name)
-          .removeClass(this.classes.hidden);
+          let unhide = () => {
+            this.store.nav.next
+            .text(next.label || next.name)
+            .attr('href', '#' + next.name)
+
+            this.store.nav.next.removeClass(this.classes.hidden);
+          }
+          if (delay) {
+            this.store.nav.next.addClass(this.classes.hidden);
+          }
+          this.store.nav.nextTimeout = delay ? setTimeout(unhide, delay) : unhide();
         } else {
           this.store.nav.next
           .text('')
@@ -312,7 +344,7 @@
 
       if (absolute) {
         let y = this.store.elements.scroller[0].scrollTop;
-        $('.' + this.classes.section.class).css('transform', 'translate3d(0, ' + y + 'px, 0)');
+        $('.' + this.classes.section.class + ':visible').css('transform', 'translate3d(0, ' + y + 'px, 0)');
       } else {
         $('.' + this.classes.section.class).css('transform', 'none');
       }
@@ -372,6 +404,7 @@
     }
 
     scrollTo(to, args) {
+
       // Allow shorthand duration
       let duration = typeof args === 'number' ? args : false;
 
@@ -409,6 +442,7 @@
         }
       }
 
+      this.is.scrolling = true;
 
       let isAbs = this.is.absolute,
       afterScroll = () => {
@@ -417,6 +451,8 @@
           this.setAbsolute(true);
         }
 
+        this.refresh();
+
         if (args.hideNav) {
           this.setNavigation({
             hidden: false,
@@ -424,7 +460,8 @@
           });
         }
 
-        this.refresh();
+        // Start updating on change again
+        this.is.scrolling = false;
 
         if (typeof args.complete === 'function') {
           args.complete();
@@ -432,7 +469,9 @@
       };
 
       if (args.hideNav) {
-        this.setNavigation({ hidden: true });
+        this.setNavigation({
+          hidden: true
+        });
       }
 
       if (isAbs) {
@@ -446,7 +485,8 @@
         }, args.duration, args.ease, () => afterScroll());
       } else {
         $(this.store.elements.scroller)[0].scrollTo(0, to);
-        this.tidyUntil(this.getFromY(to).index);
+        let tidyIndex = this.getFromY(to).index;
+        this.tidyUntil(tidyIndex - 1);
         afterScroll();
       }
     }
@@ -464,12 +504,14 @@
         return false;
       }
 
+      const queue = this.queue();
       for (let i = 0; i <= to; i++) {
         let s = this.sections[i];
         if (typeof s.cleanup === 'function') {
-          s.cleanup(true)
+          queue.add(s.cleanup(s, true));
         }
       }
+      queue.run();
     }
 
     getFromY(y) {
@@ -484,7 +526,7 @@
 
     scroll(e) {
       const y = this.store.elements.scroller[0].scrollTop,
-      ready = this.store.callback.isReady();
+      ready = this.store.fn.isReady();
 
       let doneCurrent = false;
 
@@ -495,7 +537,9 @@
         let s = this.sections[i];
 
         if (this.is.absolute) {
-          $(s.element).css('transform', 'translate3d(0, ' + y + 'px, 0)');
+          if ($(s.element).is(':visible')) {
+            $(s.element).css('transform', 'translate3d(0, ' + y + 'px, 0)');
+          }
         }
 
         if (!doneCurrent && s.top <= y) {
@@ -507,19 +551,22 @@
 
             this.triggerChange(s, forward, i);
 
+            if (ready && this.store.page.previous) {
+              // Run cleanup and queued functions
+              this.queue(this.store.page.previous.cleanup(s, forward)).run();
+            }
 
-            /*
-             * Maybe create a change queuing function that allows updates to be grouped/overridden if calling multiple cleanups
-             */
-            if (ready && this.store.page.previous) { this.store.page.previous.cleanup(s, forward); }
-            if (ready && typeof s.before === 'function') { s.before(s, forward); }
+            if (ready && typeof s.before === 'function') {
+              this.queue(s.before(s, forward)).run();
+            }
 
             this.setActive(s);
           }
 
           let sy = y - s.top, a = (sy / s.distance);
-          if (ready && typeof s.onScroll === 'function') {
-            s.onScroll(a, s, sy, y);
+          if (ready && typeof s.scroll === 'function') {
+            // TODO - OnScroll queuing (if required)
+            s.scroll(a, s, sy, y);
           }
 
           this.store.page.info = {
@@ -540,7 +587,28 @@
       }
     }
 
-    #addClone (distance, $el, className) {
+    queue(q) {
+      let queue = {
+        fn: new Map(),
+        run: (args) => {
+          queue.fn.forEach(fn => fn(args));
+        },
+        add: (q) => {
+          if (typeof q === 'object') {
+            Object.entries(q).forEach(f => {
+              if (typeof f[1] === 'function') {
+                queue.fn.set(f[0], f[1]);
+              }
+            });
+          }
+        }
+      };
+
+      queue.add(q);
+      return queue;
+    }
+
+    addClone (distance, $el, className) {
       let $clone = $('<section>&nbsp;</section>');
       $clone.height(distance);
       $clone.addClass(this.classes.clone.class);
@@ -575,7 +643,7 @@
       }
 
       if (!this.store.elements.windowClone) {
-        this.store.elements.windowClone = this.#addClone('100vh', false, this.classes.clone.window);
+        this.store.elements.windowClone = this.addClone('100vh', false, this.classes.clone.window);
         this.store.elements.wrap.prepend(this.store.elements.windowClone);
       }
 
@@ -590,7 +658,7 @@
       if ($el.length) {
         $el.addClass(this.classes.section.class);
 
-        let $clone = this.#addClone(section.distance, $el);
+        let $clone = this.addClone(section.distance, $el);
 
         if (section.css) {
           $el.css(section.css);
@@ -604,6 +672,14 @@
         section.element = $el[0];
         section.clone = $clone;
         section.index = this.sections.length;
+
+        if (typeof section.animation === 'object') {
+          const ani = section.animation;
+          section.setup = ani.setup || section.setup;
+          section.before = ani.before || section.before;
+          section.scroll = ani.scroll || section.scroll;
+          section.cleanup = ani.cleanup || section.cleanup;
+        }
 
         if (typeof section.cleanup !== 'function') {
           section.cleanup = () => {};
@@ -639,6 +715,8 @@
      */
 
     static split(amt, from, to, limit) {
+      from = isNaN(from) ? 0 : from;
+      to = isNaN(to) ? 1 : to;
       let a = amt - from,
       multi = 1 / (to - from),
       val = a * multi;
@@ -650,15 +728,18 @@
     }
 
     static splitInOut(amt, from, peak, to) {
-       let before = this.split(amt, from, peak),
-       after = 1 - this.split(amt, peak, to);
-       return before < 1 ? before : after;
+      from = isNaN(from) ? 0 : from;
+      peak = isNaN(peak) ? 0.5 : peak;
+      to = isNaN(to) ? 1 : to;
+      let before = this.split(amt, from, peak),
+      after = 1 - this.split(amt, peak, to);
+      return before < 1 ? before : after;
     }
 
     static splitInOutWait(amt, from, sPeak, ePeak, to) {
-       let before = this.split(amt, from, sPeak),
-       after = 1 - this.split(amt, ePeak, to);
-       return before < 1 ? before : (amt < ePeak ? 1 : after);
+      let before = this.split(amt, from, sPeak),
+      after = 1 - this.split(amt, ePeak, to);
+      return before < 1 ? before : (amt < ePeak ? 1 : after);
     }
 
     static resolvePoint(deg, length, start) {
