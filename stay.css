@@ -1,0 +1,43 @@
+.stay-wrap,
+.stay-scroll-wrap {
+  position: relative; }
+
+.stay-section {
+  position: fixed;
+  pointer-events: none;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100vh; }
+  .stay-wrap.stay-abs .stay-section {
+    position: absolute; }
+    .stay-wrap.stay-abs .stay-section.active-screen {
+      pointer-events: all; }
+
+.clone-screen {
+  pointer-events: none; }
+
+.stay-hidden {
+  opacity: 0;
+  pointer-events: none !important; }
+
+.stay-nav {
+  pointer-events: none;
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  z-index: 999;
+  transition: opacity 1s; }
+  .stay-nav a {
+    pointer-events: all;
+    position: absolute;
+    right: 30px;
+    transition: opacity 1s 0.5s; }
+    .stay-nav a.stay-hidden {
+      transition: opacity 0.5s; }
+    .stay-nav a.stay-go-back {
+      top: 80px; }
+    .stay-nav a.stay-go-next {
+      bottom: 40px; }
