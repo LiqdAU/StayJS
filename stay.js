@@ -58,11 +58,13 @@
         ...opts.classes
       } : this.classes;
 
-      this.store.elements.wrap = $(opts.wrap || $('main'));
+      this.store.elements.wrap = $(opts.wrap || $(document.body));
       this.reset(opts);
 
       // Events
-      $(this.store.elements.scroller).on('scroll', this.store.fn.onScroll);
+      let scroller = this.store.elements.scroller,
+      target = scroller[0] === document.documentElement ? document : scroller;
+      $(target).on('scroll', this.store.fn.onScroll);
       window.addEventListener("hashchange", () => {
         if (!this.is.scrolling) {
           this.store.fn.hashChange();
@@ -90,7 +92,7 @@
       opts.isReady = typeof opts.isReady !== 'function' ? this.store.fn.isReady : opts.isReady;
 
       this.sections = [];
-      this.store.elements.scroller = $(opts.scroller || document);
+      this.store.elements.scroller = $(opts.scroller || document.documentElement);
 
       // Remove window clones
       $('.' + this.classes.clone.window).remove();
@@ -256,7 +258,7 @@
           next = $('<a>', { href: '#', class: this.classes.nav.next });
 
           wrap.append([ back, next ]);
-          $(this.store.elements.scroller).append(wrap);
+          $(this.store.elements.wrap).append(wrap);
 
           this.store.nav = {
             wrap,
