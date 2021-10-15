@@ -487,8 +487,10 @@
         }, args.duration, args.ease, () => afterScroll());
       } else {
         $(this.store.elements.scroller)[0].scrollTo(0, to);
-        let tidyIndex = this.getFromY(to).index;
-        this.tidyUntil(tidyIndex - 1);
+        let section = this.getFromY(to);
+        if (section) {
+          this.tidyUntil(section.index - 1);
+        }
         afterScroll();
       }
     }
