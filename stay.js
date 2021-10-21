@@ -91,6 +91,8 @@
       opts.allowScroll = opts.allowScroll !== false;
       opts.isReady = typeof opts.isReady !== 'function' ? this.store.fn.isReady : opts.isReady;
 
+      opts.hashOpts = {};
+
       this.sections = [];
       this.store.elements.scroller = $(opts.scroller || document.documentElement);
 
