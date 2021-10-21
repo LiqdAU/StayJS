@@ -46,7 +46,7 @@
       fn: {
         isReady: () => true,
         onScroll: (e) => this.scroll(e),
-        hashChange: (e) => this.scrollToHash()
+        hashChange: (e) => this.scrollToHash(this.options.hashOpts)
       }
 
     }
