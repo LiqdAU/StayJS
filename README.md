@@ -5,20 +5,14 @@
 ---
 #### Getting Started
 ```js
+window._$ = new Stay();
+```
+or with options
+```js
 window._$ = new Stay({
   absolute: true,
   allowScroll: false,
-  navigation: {
-    enabled: true,
-    speed: 2000
-  },
-  scroller: document.body,
-  wrap: 'main',
-  debug: debug.scroll,
-  isReady: () => LK.ready,
-  hashOpts: {
-    smooth: false
-  }
+  isReady: () => amiready()
 });
 ```
 
