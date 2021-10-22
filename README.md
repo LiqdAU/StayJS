@@ -6,13 +6,29 @@
 #### Getting Started
 ```js
 window._$ = new Stay();
+
+_$.add({
+  name: 'intro',
+  selector: '#intro',
+  distance: 1000,
+  showNav: false,
+  showInNav: false,
+  animation: {
+    setup: (section) => {},
+    before: (section, forward) => {},
+    scroll: (amount, section, sectionY, pageY) => {},
+    cleanup: (section, forward) => {}
+  }
+})
 ```
 or with options
 ```js
 window._$ = new Stay({
-  absolute: true,
-  allowScroll: false,
-  isReady: () => amiready()
+  sections: [
+    {
+      //...
+    }
+  ]
 });
 ```
 
@@ -29,4 +45,3 @@ window._$ = new Stay({
 | debug       | Boolean        | Whether to enable the debugger by default.                   | false                    |
 | isReady     | Callback       | A callback that returns whether the page is ready for animations to be triggered. | () => true               |
 | hashOpts    | Object         | Options to pass to the scrollTo method when clicking on anchor links. | {}                       |
-
