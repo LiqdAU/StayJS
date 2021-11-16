@@ -492,7 +492,10 @@
         let section = this.getFromY(to);
         if (section) {
           // Tidy from the current section, until the section before the target
-          this.tidyUntil(section.index - 1, this.info().section.index);
+          const fromSection = this.info().section,
+          from = typeof fromSection !== 'undefined' ? fromSection.index : 0;
+
+          this.tidyUntil(section.index - 1, from);
         }
         afterScroll();
       }
