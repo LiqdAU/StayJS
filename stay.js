@@ -491,7 +491,8 @@
         $(this.store.elements.scroller)[0].scrollTo(0, to);
         let section = this.getFromY(to);
         if (section) {
-          this.tidyUntil(section.index - 1);
+          // Tidy from the current section, until the section before the target
+          this.tidyUntil(section.index - 1, this.info().section.index);
         }
         afterScroll();
       }
@@ -511,12 +512,14 @@
       }
 
       const queue = this.queue();
-      for (let i = 0; i <= to; i++) {
+
+      for (let i = from; i <= to; i++) {
         let s = this.sections[i];
         if (typeof s.cleanup === 'function') {
           queue.add(s.cleanup(s, true));
         }
       }
+
       queue.run();
     }
 
