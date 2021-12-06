@@ -1,5 +1,10 @@
-(function($) {
-
+/**
+ * StayJS Library
+ *
+ * @url     https://github.com/liqdau/StayJS
+ * @version 1.0.0
+ */
+window.Stay = (function($) {
   class Stay {
     sections = [];
 
@@ -391,6 +396,11 @@
 
       if (section) {
         this.scrollTo(section, opts);
+
+        if (opts.clearAfterScroll) {
+          window.location.hash = '';
+        }
+
         return true;
       } else {
         return false;
@@ -794,8 +804,5 @@
     }
 
   }
-
-  // Define as global
-  window.Stay = Stay;
-
+  return Stay;
 })(jQuery);
