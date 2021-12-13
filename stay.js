@@ -2,7 +2,7 @@
  * StayJS Library
  *
  * @url     https://github.com/liqdau/StayJS
- * @version 1.0.0
+ * @version 1.0.1
  */
 window.Stay = (function($) {
   class Stay {
@@ -385,8 +385,19 @@ window.Stay = (function($) {
     }
 
     setScroll(toggle) {
-      let scrollType = this.options.overlayScrollbars ? 'overlay' : 'auto';
-      $(this.store.elements.scroller).css('overflow', toggle ? scrollType : 'hidden');
+      let styles = {
+        overflow: toggle ? 'auto' : 'hidden'
+      };
+
+      if ( toggle && this.options.overlayScrollbars ) {
+        if ( CSS.supports( 'overflow', 'overlay' ) ) {
+          styles['overflow'] = 'overlay';
+        } else if ( CSS.supports( 'scrollbar-width', 'none' ) ) {
+          styles['scrollbar-width'] = 'none';
+        }
+      }
+
+      $(this.store.elements.scroller).css(styles);
     }
 
     scrollToHash(opts) {
