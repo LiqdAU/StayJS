@@ -96,6 +96,8 @@ window.Stay = (function($) {
       opts.allowScroll = opts.allowScroll !== false;
       opts.isReady = typeof opts.isReady !== 'function' ? this.store.fn.isReady : opts.isReady;
 
+      opts.overlayScrollbars = opts.overlayScrollbars !== false;
+
       opts.hashOpts = opts.hashOpts || {};
 
       this.sections = [];
@@ -383,7 +385,8 @@ window.Stay = (function($) {
     }
 
     setScroll(toggle) {
-       $(this.store.elements.scroller).css('overflow', toggle ? 'auto' : 'hidden');
+      let scrollType = this.options.overlayScrollbars ? 'overlay' : 'auto';
+      $(this.store.elements.scroller).css('overflow', toggle ? scrollType : 'hidden');
     }
 
     scrollToHash(opts) {
