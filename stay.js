@@ -71,14 +71,23 @@ window.Stay = (function($) {
       // Events
       let scroller = this.store.elements.scroller,
       target = scroller[0] === document.documentElement ? document : scroller;
+
       $(target).on('scroll', this.store.fn.onScroll);
+
       window.addEventListener("hashchange", () => {
         if (!this.is.scrolling) {
           this.store.fn.hashChange();
         }
       }, false);
-      $(document).on('click', '.' + this.classes.nav.back, () => this.previous());
-      $(document).on('click', '.' + this.classes.nav.next, () => this.next());
+
+      $(document).on('click', '.' + this.classes.nav.back, (e) => {
+        e.preventDefault();
+        this.previous();
+      });
+      $(document).on('click', '.' + this.classes.nav.next, (e) => {
+        e.preventDefault();
+        this.next();
+      });
     }
 
     dispose() {
