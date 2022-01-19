@@ -1,7 +1,7 @@
 /**
  * StayJS Library
  *
- * @url     https://github.com/liqdau/StayJS
+ * @url https://github.com/liqdau/StayJS
  * @version 1.0.1
  */
 window.Stay = (function($) {
@@ -30,7 +30,9 @@ window.Stay = (function($) {
     options = {}
     is = {
       debug: false,
-      absolute: false
+      absolute: false,
+      guiding: false,
+      scrolling: false
     }
     store = {
       nav: {},
@@ -566,6 +568,8 @@ window.Stay = (function($) {
 
       let doneCurrent = false;
 
+      this.store.page.forwards = this.store.page.previousY < y;
+      this.store.page.previousY = y;
       this.store.page.previousIndex = this.store.page.index;
       this.store.page.previous = this.store.page.current;
 
@@ -603,6 +607,30 @@ window.Stay = (function($) {
           if (ready && typeof s.scroll === 'function') {
             // TODO - OnScroll queuing (if required)
             s.scroll(a, s, sy, y);
+          }
+
+          // Trigger guides if set
+          if (Array.isArray(s.guided) && !this.is.guiding && !this.is.scrolling) {
+            s.guided
+              .filter(g => !!g.reverse === !this.store.page.forwards)
+              .forEach((guide) => {
+                let rounded = parseFloat(a.toFixed(2)),
+                matchForward = (!guide.reverse && rounded >= guide.from && rounded < guide.to),
+                matchReverse = (guide.reverse && rounded <= guide.from && rounded > guide.to);
+                guide.reverse = !!guide.reverse;
+                if (matchForward || matchReverse) {
+                  this.setScroll(false);
+                  this.is.guiding = true;
+                  this.scrollTo(s, {
+                    duration: guide.duration || 1000,
+                    percent: guide.to * 100,
+                    complete: () => {
+                      this.is.guiding = false;
+                      this.setScroll(true);
+                    }
+                  });
+                }
+            });
           }
 
           this.store.page.info = {
