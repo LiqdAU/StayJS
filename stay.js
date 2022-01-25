@@ -63,6 +63,7 @@ window.Stay = (function($) {
 
           this.is.scrollScheduled = true;
 
+          // CURRENTLY EXPERIMENTAL
           window.requestAnimationFrame(() => {
             this.store.elements.scroller.scrollTop(
               this.store.elements.scroller.scrollTop() + 10
