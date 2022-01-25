@@ -42,7 +42,8 @@ window.Stay = (function($) {
         index: -1,
         previous: false,
         previousIndex: -1,
-        info: {}
+        info: {},
+        shouldCleanup: true
       },
       elements: {
         wrap: null,
@@ -248,8 +249,9 @@ window.Stay = (function($) {
         section.top = newDist;
         newDist += section.distance;
 
-        if (typeof section.setup === 'function') {
+        if (!section.isSetup && typeof section.setup === 'function') {
           section.setup(section);
+          section.isSetup = true;
         }
       });
       this.store.page.distance = newDist;
@@ -530,7 +532,7 @@ window.Stay = (function($) {
           const fromSection = this.info().section,
           from = typeof fromSection !== 'undefined' ? fromSection.index : 0;
 
-          this.tidyUntil(section.index - 1, from);
+          this.tidyUntil(section.index, from);
         }
         afterScroll();
       }
@@ -549,13 +551,31 @@ window.Stay = (function($) {
         return false;
       }
 
-      const queue = this.queue();
+      const forwards = from <= to,
+      queue = this.queue();
 
-      for (let i = from; i <= to; i++) {
+      this.store.page.current = false;
+      this.store.page.shouldCleanup = false;
+
+      if (!forwards) {
+        const _from = from;
+        from = to;
+        to = _from;
+      }
+
+      for (let i = from; i < to; i++) {
         let s = this.sections[i];
         if (typeof s.cleanup === 'function') {
-          queue.add(s.cleanup(s, true));
+          queue.add(s.cleanup(s, forwards));
         }
+      }
+
+      if (this.is.debug) {
+        console.info(
+          '[StayJS] Cleanup running ', forwards ? 'forwards' : 'backwards', ' from ',
+          forwards ? from : to, ' to ',
+          forwards ? to : from
+        );
       }
 
       queue.run();
@@ -600,7 +620,7 @@ window.Stay = (function($) {
 
             this.triggerChange(s, forward, i);
 
-            if (ready && this.store.page.previous) {
+            if (ready && this.store.page.shouldCleanup && this.store.page.previous) {
               // Run cleanup and queued functions
               this.queue(this.store.page.previous.cleanup(s, forward)).run();
             }
@@ -655,6 +675,8 @@ window.Stay = (function($) {
             a: Math.floor(a * 100)
           });
 
+          this.store.page.shouldCleanup = true;
+
           doneCurrent = true;
         }
       }
@@ -664,7 +686,12 @@ window.Stay = (function($) {
       let queue = {
         fn: new Map(),
         run: (args) => {
-          queue.fn.forEach(fn => fn(args));
+          queue.fn.forEach((fn, key) => {
+            if (this.is.debug) {
+              console.info('[StayJS]', 'Ran cleanup function ', key, fn);
+            }
+            return fn(args);
+          });
         },
         add: (q) => {
           if (typeof q === 'object') {
@@ -760,6 +787,7 @@ window.Stay = (function($) {
 
         if (typeof section.setup === 'function') {
           section.setup(section);
+          section.isSetup = true;
         }
 
         this.store.page.distance += section.distance || 0;
