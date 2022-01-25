@@ -32,7 +32,8 @@ window.Stay = (function($) {
       debug: false,
       absolute: false,
       guiding: false,
-      scrolling: false
+      scrolling: false,
+      scrollScheduled: false
     }
     store = {
       nav: {},
@@ -54,7 +55,22 @@ window.Stay = (function($) {
       fn: {
         isReady: () => true,
         onScroll: (e) => this.scroll(e),
-        hashChange: (e) => this.scrollToHash(this.options.hashOpts)
+        hashChange: (e) => this.scrollToHash(this.options.hashOpts),
+        simulateScroll: (e) => {
+          if (this.is.scrollScheduled) {
+            return;
+          }
+
+          this.is.scrollScheduled = true;
+
+          window.requestAnimationFrame(() => {
+            this.store.elements.scroller.scrollTop(
+              this.store.elements.scroller.scrollTop() + 10
+            );
+            this.store.fn.onScroll();
+            this.is.scrollScheduled = false;
+          });
+        }
       }
 
     }
@@ -74,6 +90,12 @@ window.Stay = (function($) {
       target = scroller[0] === document.documentElement ? document : scroller;
 
       $(target).on('scroll', this.store.fn.onScroll);
+
+      if (opts.simulateScroll === true) {
+        $(document).on('wheel', '.stay-section', (e) => {
+          this.store.fn.simulateScroll();
+        });
+      }
 
       window.addEventListener("hashchange", () => {
         if (!this.is.scrolling) {
@@ -471,6 +493,10 @@ window.Stay = (function($) {
         percent = section.defaultPercent || 0;
         to = to.top || 0;
 
+        if (section.disableSmooth === true) {
+          args.smooth = false;
+        }
+
         if (typeof args.percent === 'number') {
           percent = args.percent;
         }
@@ -559,8 +585,8 @@ window.Stay = (function($) {
 
       if (!forwards) {
         const _from = from;
-        from = to;
-        to = _from;
+        from = to + 1;
+        to = _from + 1;
       }
 
       for (let i = from; i < to; i++) {
@@ -688,7 +714,7 @@ window.Stay = (function($) {
         run: (args) => {
           queue.fn.forEach((fn, key) => {
             if (this.is.debug) {
-              console.info('[StayJS]', 'Ran cleanup function ', key, fn);
+              console.info('[StayJS]', 'Ran queued function ', key, fn);
             }
             return fn(args);
           });

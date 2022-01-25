@@ -18,6 +18,10 @@
       pointer-events: all;
     }
   }
+
+  &.active-screen a {
+      pointer-events: all;
+  }
 }
 
 .clone-screen {
