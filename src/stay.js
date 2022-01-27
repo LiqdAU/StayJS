@@ -2,7 +2,7 @@
  * StayJS Library
  *
  * @url https://github.com/liqdau/StayJS
- * @version 1.0.1
+ * @version 1.0.2
  */
 window.Stay = (function($) {
   class Stay {
