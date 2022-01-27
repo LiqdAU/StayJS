@@ -1,3 +1,9 @@
+/**
+ * StayJS Library
+ *
+ * @url https://github.com/liqdau/StayJS
+ * @version 1.0.2
+ */
 .stay-wrap,
 .stay-scroll-wrap {
   position: relative;
@@ -17,6 +23,10 @@
     &.active-screen {
       pointer-events: all;
     }
+  }
+
+  &.active-screen a {
+      pointer-events: all;
   }
 }
 

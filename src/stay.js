@@ -1,8 +1,8 @@
 /**
  * StayJS Library
  *
- * @url     https://github.com/liqdau/StayJS
- * @version 1.0.1
+ * @url https://github.com/liqdau/StayJS
+ * @version 1.0.2
  */
 window.Stay = (function($) {
   class Stay {
@@ -30,7 +30,10 @@ window.Stay = (function($) {
     options = {}
     is = {
       debug: false,
-      absolute: false
+      absolute: false,
+      guiding: false,
+      scrolling: false,
+      scrollScheduled: false
     }
     store = {
       nav: {},
@@ -40,7 +43,8 @@ window.Stay = (function($) {
         index: -1,
         previous: false,
         previousIndex: -1,
-        info: {}
+        info: {},
+        shouldCleanup: true
       },
       elements: {
         wrap: null,
@@ -51,7 +55,23 @@ window.Stay = (function($) {
       fn: {
         isReady: () => true,
         onScroll: (e) => this.scroll(e),
-        hashChange: (e) => this.scrollToHash(this.options.hashOpts)
+        hashChange: (e) => this.scrollToHash(this.options.hashOpts),
+        simulateScroll: (e) => {
+          if (this.is.scrollScheduled) {
+            return;
+          }
+
+          this.is.scrollScheduled = true;
+
+          // CURRENTLY EXPERIMENTAL
+          window.requestAnimationFrame(() => {
+            this.store.elements.scroller.scrollTop(
+              this.store.elements.scroller.scrollTop() + 10
+            );
+            this.store.fn.onScroll();
+            this.is.scrollScheduled = false;
+          });
+        }
       }
 
     }
@@ -69,14 +89,29 @@ window.Stay = (function($) {
       // Events
       let scroller = this.store.elements.scroller,
       target = scroller[0] === document.documentElement ? document : scroller;
+
       $(target).on('scroll', this.store.fn.onScroll);
+
+      if (opts.simulateScroll === true) {
+        $(document).on('wheel', '.stay-section', (e) => {
+          this.store.fn.simulateScroll();
+        });
+      }
+
       window.addEventListener("hashchange", () => {
         if (!this.is.scrolling) {
           this.store.fn.hashChange();
         }
       }, false);
-      $(document).on('click', '.' + this.classes.nav.back, () => this.previous());
-      $(document).on('click', '.' + this.classes.nav.next, () => this.next());
+
+      $(document).on('click', '.' + this.classes.nav.back, (e) => {
+        e.preventDefault();
+        this.previous();
+      });
+      $(document).on('click', '.' + this.classes.nav.next, (e) => {
+        e.preventDefault();
+        this.next();
+      });
     }
 
     dispose() {
@@ -237,8 +272,9 @@ window.Stay = (function($) {
         section.top = newDist;
         newDist += section.distance;
 
-        if (typeof section.setup === 'function') {
+        if (!section.isSetup && typeof section.setup === 'function') {
           section.setup(section);
+          section.isSetup = true;
         }
       });
       this.store.page.distance = newDist;
@@ -458,6 +494,10 @@ window.Stay = (function($) {
         percent = section.defaultPercent || 0;
         to = to.top || 0;
 
+        if (section.disableSmooth === true) {
+          args.smooth = false;
+        }
+
         if (typeof args.percent === 'number') {
           percent = args.percent;
         }
@@ -519,7 +559,7 @@ window.Stay = (function($) {
           const fromSection = this.info().section,
           from = typeof fromSection !== 'undefined' ? fromSection.index : 0;
 
-          this.tidyUntil(section.index - 1, from);
+          this.tidyUntil(section.index, from);
         }
         afterScroll();
       }
@@ -538,13 +578,31 @@ window.Stay = (function($) {
         return false;
       }
 
-      const queue = this.queue();
+      const forwards = from <= to,
+      queue = this.queue();
 
-      for (let i = from; i <= to; i++) {
+      this.store.page.current = false;
+      this.store.page.shouldCleanup = false;
+
+      if (!forwards) {
+        const _from = from;
+        from = to + 1;
+        to = _from + 1;
+      }
+
+      for (let i = from; i < to; i++) {
         let s = this.sections[i];
         if (typeof s.cleanup === 'function') {
-          queue.add(s.cleanup(s, true));
+          queue.add(s.cleanup(s, forwards));
         }
+      }
+
+      if (this.is.debug) {
+        console.info(
+          '[StayJS] Cleanup running ', forwards ? 'forwards' : 'backwards', ' from ',
+          forwards ? from : to, ' to ',
+          forwards ? to : from
+        );
       }
 
       queue.run();
@@ -566,6 +624,8 @@ window.Stay = (function($) {
 
       let doneCurrent = false;
 
+      this.store.page.forwards = this.store.page.previousY < y;
+      this.store.page.previousY = y;
       this.store.page.previousIndex = this.store.page.index;
       this.store.page.previous = this.store.page.current;
 
@@ -587,7 +647,7 @@ window.Stay = (function($) {
 
             this.triggerChange(s, forward, i);
 
-            if (ready && this.store.page.previous) {
+            if (ready && this.store.page.shouldCleanup && this.store.page.previous) {
               // Run cleanup and queued functions
               this.queue(this.store.page.previous.cleanup(s, forward)).run();
             }
@@ -605,6 +665,30 @@ window.Stay = (function($) {
             s.scroll(a, s, sy, y);
           }
 
+          // Trigger guides if set
+          if (Array.isArray(s.guided) && !this.is.guiding && !this.is.scrolling) {
+            s.guided
+              .filter(g => !!g.reverse === !this.store.page.forwards)
+              .forEach((guide) => {
+                let rounded = parseFloat(a.toFixed(2)),
+                matchForward = (!guide.reverse && rounded >= guide.from && rounded < guide.to),
+                matchReverse = (guide.reverse && rounded <= guide.from && rounded > guide.to);
+                guide.reverse = !!guide.reverse;
+                if (matchForward || matchReverse) {
+                  this.setScroll(false);
+                  this.is.guiding = true;
+                  this.scrollTo(s, {
+                    duration: guide.duration || 1000,
+                    percent: guide.to * 100,
+                    complete: () => {
+                      this.is.guiding = false;
+                      this.setScroll(true);
+                    }
+                  });
+                }
+            });
+          }
+
           this.store.page.info = {
             section: s,
             amount: a,
@@ -618,6 +702,8 @@ window.Stay = (function($) {
             a: Math.floor(a * 100)
           });
 
+          this.store.page.shouldCleanup = true;
+
           doneCurrent = true;
         }
       }
@@ -627,7 +713,12 @@ window.Stay = (function($) {
       let queue = {
         fn: new Map(),
         run: (args) => {
-          queue.fn.forEach(fn => fn(args));
+          queue.fn.forEach((fn, key) => {
+            if (this.is.debug) {
+              console.info('[StayJS]', 'Ran queued function ', key, fn);
+            }
+            return fn(args);
+          });
         },
         add: (q) => {
           if (typeof q === 'object') {
@@ -723,6 +814,7 @@ window.Stay = (function($) {
 
         if (typeof section.setup === 'function') {
           section.setup(section);
+          section.isSetup = true;
         }
 
         this.store.page.distance += section.distance || 0;

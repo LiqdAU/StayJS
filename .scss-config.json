@@ -1,0 +1,12 @@
+{
+	"inputDir": "src/",
+	"outputDir": "dist/",
+	"inputFile": "stay.scss",
+	"outputFile": "stay.min.css",
+	"command": "sassc",
+	"style":"compressed",
+	"sourcemap":"none",
+	"showStartup":false,
+	"showOutput":true,
+	"showError":true
+}
