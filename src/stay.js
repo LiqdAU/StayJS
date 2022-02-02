@@ -2,7 +2,7 @@
  * StayJS Library
  *
  * @url https://github.com/liqdau/StayJS
- * @version 1.0.2
+ * @version 1.0.3
  */
 window.Stay = (function($) {
   class Stay {
@@ -55,7 +55,7 @@ window.Stay = (function($) {
       fn: {
         isReady: () => true,
         onScroll: (e) => this.scroll(e),
-        hashChange: (e) => this.scrollToHash(this.options.hashOpts),
+        hashChange: (e) => this.scrollToHash(this.options.scrollToHash),
         simulateScroll: (e) => {
           if (this.is.scrollScheduled) {
             return;
@@ -106,11 +106,12 @@ window.Stay = (function($) {
 
       $(document).on('click', '.' + this.classes.nav.back, (e) => {
         e.preventDefault();
-        this.previous();
+        this.previous(this.options.navigation.options || {});
       });
+
       $(document).on('click', '.' + this.classes.nav.next, (e) => {
         e.preventDefault();
-        this.next();
+        this.next(this.options.navigation.options || {});
       });
     }
 
@@ -133,7 +134,7 @@ window.Stay = (function($) {
 
       opts.overlayScrollbars = opts.overlayScrollbars !== false;
 
-      opts.hashOpts = opts.hashOpts || {};
+      opts.scrollToHash = opts.scrollToHash || {};
 
       this.sections = [];
       this.store.elements.scroller = $(opts.scroller || document.documentElement);
@@ -470,10 +471,11 @@ window.Stay = (function($) {
     scrollTo(to, args) {
 
       // Allow shorthand duration
-      let duration = typeof args === 'number' ? args : false;
+      let duration = typeof args === 'number' ? args : false,
+      section = null;
 
-      args = typeof args == 'object' ? args : {};
-      args.duration = duration ? duration : args.duration || this.options.navigation.speed || 1000;
+      args = typeof args == 'object' ? { ...args } : {};
+      args.duration = duration ? duration : args.duration || 1000;
       args.ease = args.ease || 'swing';
       args.smooth = args.smooth !== false;
       args.type = args.type || 'index';
@@ -490,8 +492,9 @@ window.Stay = (function($) {
 
       // If destination is an object, assume it's a section and apply modifiers
       if (typeof to === 'object') {
-        let section = to,
-        percent = section.defaultPercent || 0;
+        let percent = to.defaultPercent || 0;
+
+        section = to;
         to = to.top || 0;
 
         if (section.disableSmooth === true) {
@@ -546,6 +549,13 @@ window.Stay = (function($) {
         this.setAbsolute(false)
       }
 
+      // Try to find the destination section
+      section = this.getFromY(to);
+
+      if ('function' === typeof args.before) {
+        args.before(section, to);
+      }
+
       if (args.smooth) {
         $(this.store.elements.scroller).stop()
         .animate({
@@ -553,7 +563,6 @@ window.Stay = (function($) {
         }, args.duration, args.ease, () => afterScroll());
       } else {
         $(this.store.elements.scroller)[0].scrollTo(0, to);
-        let section = this.getFromY(to);
         if (section) {
           // Tidy from the current section, until the section before the target
           const fromSection = this.info().section,
@@ -828,7 +837,7 @@ window.Stay = (function($) {
 
     _options(opts, defaults, ifnotset) {
       if (ifnotset) {
-        return typeof opts !== 'object' ? defaults: opts;
+        return typeof opts !== 'object' ? defaults : opts;
       }
       defaults = typeof defaults === 'object' ? defaults : {};
       opts = typeof opts === 'object' ? opts : {};
