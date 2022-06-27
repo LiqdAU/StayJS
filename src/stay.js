@@ -78,12 +78,12 @@ window.Stay = (function($) {
 
     constructor(opts) {
       // Set classes on construct if passed in
-      this.classes = typeof opts.classes === 'object' ? {
+      this.classes = typeof opts?.classes === 'object' ? {
         ...this.classes,
         ...opts.classes
       } : this.classes;
 
-      this.store.elements.wrap = $(opts.wrap || $(document.body));
+      this.store.elements.wrap = $(opts?.wrap || $(document.body));
       this.reset(opts);
 
       // Events
@@ -92,7 +92,7 @@ window.Stay = (function($) {
 
       $(target).on('scroll', this.store.fn.onScroll);
 
-      if (opts.simulateScroll === true) {
+      if (opts?.simulateScroll === true) {
         $(document).on('wheel', '.stay-section', (e) => {
           this.store.fn.simulateScroll();
         });
@@ -359,7 +359,7 @@ window.Stay = (function($) {
             this.store.nav.back.addClass(this.classes.hidden);
           }
           this.store.nav.prevTimeout = delay ? setTimeout(unhide, delay) : unhide();
-        } else {
+        } else if (!!this.store.nav.back) {
           this.store.nav.back
           .text('')
           .addClass(this.classes.hidden);
@@ -377,7 +377,7 @@ window.Stay = (function($) {
             this.store.nav.next.addClass(this.classes.hidden);
           }
           this.store.nav.nextTimeout = delay ? setTimeout(unhide, delay) : unhide();
-        } else {
+        } else if (!!this.store.nav.next) {
           this.store.nav.next
           .text('')
           .addClass(this.classes.hidden);
@@ -628,7 +628,9 @@ window.Stay = (function($) {
     }
 
     scroll(e) {
-      const y = this.store.elements.scroller[0].scrollTop,
+      const y = this.store.elements.scroller[0] === document.documentElement
+        ? document.body.scrollTop
+        : this.store.elements.scroller[0].scrollTop,
       ready = this.store.fn.isReady();
 
       let doneCurrent = false;
